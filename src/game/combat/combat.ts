@@ -25,6 +25,7 @@ export interface EnemyState {
   discovered: boolean
   isBoss: boolean
   warning: AttackWarning | null
+  statuses?: { poison: number; burn: number; slow: number; stun: number }
 }
 
 export interface CombatState {
@@ -68,7 +69,7 @@ export function createEnemy(id: string, kind: EnemyKind, level: number, position
   return {
     id, kind, level, position: { ...position }, hp: maxHp, maxHp,
     attack: isBoss ? Math.floor(normalAttack * 1.5) : normalAttack,
-    discovered: false, isBoss, warning: null,
+    discovered: false, isBoss, warning: null, statuses: { poison: 0, burn: 0, slow: 0, stun: 0 },
   }
 }
 
@@ -212,6 +213,13 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
     if (playerHp <= 0) break
     const index = enemies.findIndex((enemy) => enemy.id === orderedEnemy.id)
     let enemy = enemies[index]
+    const statuses = enemy.statuses ?? { poison: 0, burn: 0, slow: 0, stun: 0 }
+    const skipSlowedMovement = statuses.slow > 0 && statuses.slow % 2 === 1
+    enemy = { ...enemy, statuses: { ...statuses, slow: Math.max(0, statuses.slow - 1) } }
+    if (statuses.stun > 0) {
+      enemies[index] = { ...enemy, statuses: { ...enemy.statuses!, stun: statuses.stun - 1 } }
+      continue
+    }
     if (enemy.warning) {
       if (enemy.warning.remaining > 1) enemy = { ...enemy, warning: { ...enemy.warning, remaining: enemy.warning.remaining - 1 } }
       else {
@@ -227,6 +235,10 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
     const warning = createAttackWarning(enemy, state.position, map)
     if (warning) enemy = { ...enemy, warning }
     else {
+      if (skipSlowedMovement) {
+        enemies[index] = enemy
+        continue
+      }
       const occupiedNow = new Set(enemies.filter((candidate) => candidate.id !== enemy.id).map((candidate) => positionKey(candidate.position)))
       const reserved = new Set([...originalPositions, ...occupiedNow])
       reserved.delete(positionKey(enemy.position))

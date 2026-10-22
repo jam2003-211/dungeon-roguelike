@@ -1,46 +1,19 @@
 import { useState } from 'react'
 import { Icon, type IconName } from '../components/Icon'
-import { AppShell, Panel, PlannedBadge, ScreenHeader } from '../components/Ui'
-import { initialPlayerView } from '../data/presentation'
+import { AppShell, Panel, ScreenHeader } from '../components/Ui'
+import { RARITY_LABELS, SUBTYPE_LABELS, canEquip, discardItem, equipItem, isEquipped, itemBonuses, sortAndFilterInventory, toggleFavorite, unequipSlot, type EquipmentCategory, type EquipmentItem, type EquipmentSlots, type PlayerState } from '../game/player'
+import { SKILLS } from '../game/skills'
 
-const equipmentSlots = [
-  { label: '武器', value: initialPlayerView.equipment.weapon, icon: 'weapon', rarity: 'common' },
-  { label: '防具', value: initialPlayerView.equipment.armor, icon: 'armor', rarity: 'common' },
-  { label: 'アクセサリー 1', value: initialPlayerView.equipment.accessory1, icon: 'accessory', rarity: 'empty' },
-  { label: 'アクセサリー 2', value: initialPlayerView.equipment.accessory2, icon: 'accessory', rarity: 'empty' },
-] as const
+const tabs: Array<{ id: EquipmentCategory; label: string }> = [{ id: 'weapon', label: '武器' }, { id: 'armor', label: '防具' }, { id: 'accessory', label: 'アクセサリー' }]
+const slots: Array<{ id: keyof EquipmentSlots; label: string; icon: IconName }> = [{ id: 'weapon', label: '武器', icon: 'weapon' }, { id: 'armor', label: '防具', icon: 'armor' }, { id: 'accessory1', label: 'アクセサリー 1', icon: 'accessory' }, { id: 'accessory2', label: 'アクセサリー 2', icon: 'accessory' }]
 
-const tabs = ['武器', '防具', 'アクセサリー'] as const
-type EquipmentTab = (typeof tabs)[number]
+function ItemDetail({ item, player, readOnly, onClose, onChange }: { item: EquipmentItem; player: PlayerState; readOnly: boolean; onClose: () => void; onChange: (player: PlayerState) => void }) {
+  const bonus = itemBonuses(item); const equipped = isEquipped(player, item.id); const comparableId = item.category === 'weapon' ? player.equipment.weapon : item.category === 'armor' ? player.equipment.armor : player.equipment.accessory1; const current = player.inventory.find((candidate) => candidate.id === comparableId); const currentBonus = current ? itemBonuses(current) : { maxHp: 0, physical: 0, magic: 0 }; const allowed = canEquip(player.job, item); const [confirmDiscard, setConfirmDiscard] = useState(false); const [chooseAccessory, setChooseAccessory] = useState(false)
+  const equip = (slot?: 'accessory1' | 'accessory2') => { const next = equipItem(player, item.id, slot); onChange(next); onClose() }
+  return <div className="modal-layer modal-layer--front"><Panel className="dialog-panel item-detail" role="dialog" aria-modal="true"><h2>{item.favorite ? '★ ' : ''}{item.name}</h2><p>{SUBTYPE_LABELS[item.subtype]} / Lv.{item.level} / {RARITY_LABELS[item.rarity]}{item.testOnly ? ' / 開発テスト用' : ''}</p><dl><div><dt>最大HP</dt><dd>{bonus.maxHp}（{bonus.maxHp - currentBonus.maxHp >= 0 ? '+' : ''}{bonus.maxHp - currentBonus.maxHp}）</dd></div><div><dt>物理</dt><dd>{bonus.physical}（{bonus.physical - currentBonus.physical >= 0 ? '+' : ''}{bonus.physical - currentBonus.physical}）</dd></div><div><dt>魔法</dt><dd>{bonus.magic}（{bonus.magic - currentBonus.magic >= 0 ? '+' : ''}{bonus.magic - currentBonus.magic}）</dd></div></dl>{item.specialEffect && <p>特殊効果：{item.specialEffect}</p>}{item.skills.length > 0 && <p>スキル：{item.skills.map((id) => SKILLS[id].name).join('、')}</p>}{!allowed && <p className="error-text">現在の職業では装備できません。</p>}{readOnly ? <p>探索中は閲覧のみです。</p> : <div className="item-actions"><button type="button" disabled={!allowed || equipped} onClick={() => item.category === 'accessory' && player.equipment.accessory1 && player.equipment.accessory2 ? setChooseAccessory(true) : equip()}>{equipped ? '装備中' : '装備する'}</button><button type="button" onClick={() => onChange(toggleFavorite(player, item.id))}>{item.favorite ? 'お気に入り解除' : 'お気に入り登録'}</button><button type="button" disabled={item.favorite || equipped} onClick={() => setConfirmDiscard(true)}>廃棄</button></div>}{chooseAccessory && <div className="slot-choice"><p>交換する枠を選択</p><button onClick={() => equip('accessory1')}>アクセサリー1</button><button onClick={() => equip('accessory2')}>アクセサリー2</button></div>}{confirmDiscard && <div className="slot-choice"><p>この装備を廃棄しますか？</p><button onClick={() => setConfirmDiscard(false)}>キャンセル</button><button onClick={() => { onChange(discardItem(player, item.id)); onClose() }}>廃棄する</button></div>}<button type="button" onClick={onClose}>閉じる</button></Panel></div>
+}
 
-export function EquipmentScreen({ onBack }: { onBack: () => void }) {
-  const [activeTab, setActiveTab] = useState<EquipmentTab>('武器')
-
-  return (
-    <AppShell>
-      <ScreenHeader title="装備・所持品" subtitle="装備内容の確認" onBack={onBack} />
-      <p className="screen-intro">この段階では閲覧用の画面です。装備変更やアイテム操作はできません。</p>
-      <div className="section-heading"><h2>現在の装備</h2><PlannedBadge /></div>
-      <div className="equipment-grid">
-        {equipmentSlots.map((slot) => (
-          <Panel className={`equipment-slot rarity-${slot.rarity}`} key={slot.label}>
-            <Icon name={slot.icon as IconName} size="large" />
-            <small>{slot.label}</small>
-            <strong>{slot.value}</strong>
-          </Panel>
-        ))}
-      </div>
-      <div className="section-heading inventory-heading"><h2>所持品</h2><span className="item-count">0 items</span></div>
-      <div className="category-tabs" role="tablist" aria-label="所持品の分類">
-        {tabs.map((tab) => (
-          <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} className={activeTab === tab ? 'is-active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>
-        ))}
-      </div>
-      <Panel className="empty-inventory" role="tabpanel">
-        <Icon name="bag" size="large" />
-        <strong>{activeTab}の所持品はありません</strong>
-        <p>アイテムの獲得・装備変更は今後実装予定です。</p>
-      </Panel>
-    </AppShell>
-  )
+export function EquipmentScreen({ player, readOnly, onChange, onBack }: { player: PlayerState; readOnly: boolean; onChange: (player: PlayerState) => void; onBack: () => void }) {
+  const [category, setCategory] = useState<EquipmentCategory>('weapon'); const [query, setQuery] = useState(''); const [selected, setSelected] = useState<string | null>(null); const items = sortAndFilterInventory(player, category, query); const selectedItem = player.inventory.find((item) => item.id === selected) ?? null
+  return <AppShell><ScreenHeader title="装備・所持品" subtitle={readOnly ? '探索中：閲覧のみ' : '町：装備を変更可能'} onBack={onBack} /><p className="screen-intro">開発テスト用装備を表示しています。正式な報酬・ドロップではありません。</p><div className="section-heading"><h2>現在の装備</h2></div><div className="equipment-grid">{slots.map((slot) => { const equipped = player.inventory.find((item) => item.id === player.equipment[slot.id]); return <button type="button" className={`panel equipment-slot rarity-${equipped?.rarity ?? 'empty'}`} key={slot.id} disabled={readOnly || !equipped} onClick={() => onChange(unequipSlot(player, slot.id))}><Icon name={slot.icon} size="large" /><small>{slot.label}</small><strong>{equipped?.name ?? 'なし'}</strong>{!readOnly && equipped && <em>タップで解除</em>}</button> })}</div><div className="section-heading inventory-heading"><h2>所持品</h2><span className="item-count">{player.inventory.length} items</span></div><input className="inventory-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="名前で検索" aria-label="装備名検索" /><div className="category-tabs" role="tablist">{tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={category === tab.id} className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>{tab.label}</button>)}</div><div className="inventory-list">{items.map((item) => <button type="button" className={`panel inventory-item rarity-${item.rarity}`} key={item.id} onClick={() => setSelected(item.id)}><strong>{item.favorite ? '★ ' : ''}{item.name}</strong><span>Lv.{item.level} {RARITY_LABELS[item.rarity]}</span><small>{isEquipped(player, item.id) ? '装備中' : canEquip(player.job, item) ? '装備可能' : '装備不可'}</small></button>)}</div>{selectedItem && <ItemDetail item={selectedItem} player={player} readOnly={readOnly} onClose={() => setSelected(null)} onChange={onChange} />}</AppShell>
 }

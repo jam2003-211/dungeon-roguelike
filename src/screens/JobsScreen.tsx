@@ -1,29 +1,10 @@
+import { useState } from 'react'
 import { Icon, type IconName } from '../components/Icon'
-import { AppShell, Panel, PlannedBadge, ScreenHeader } from '../components/Ui'
-import { initialPlayerView, jobs } from '../data/presentation'
+import { AppShell, Panel, ScreenHeader } from '../components/Ui'
+import { JOBS, calculateStats, changeJob, type JobId, type PlayerState } from '../game/player'
 
-export function JobsScreen({ onBack }: { onBack: () => void }) {
-  return (
-    <AppShell>
-      <ScreenHeader title="職業変更" subtitle={`現在の職業：${initialPlayerView.job}`} onBack={onBack} />
-      <p className="screen-intro">職業の変更処理と装備制限の適用は今後実装予定です。</p>
-      <div className="job-list">
-        {jobs.map((job) => {
-          const unlocked = initialPlayerView.level >= job.unlockLevel
-          const current = job.name === initialPlayerView.job
-          return (
-            <Panel className={`job-card ${unlocked ? '' : 'is-locked'}`} key={job.name}>
-              <div className="job-icon"><Icon name={job.icon as IconName} size="large" /></div>
-              <div className="job-copy">
-                <div><h2>{job.name}</h2>{current && <span className="current-badge">現在</span>}</div>
-                <p>{unlocked ? job.feature : `Lv.${job.unlockLevel}で解放`}</p>
-              </div>
-              <div className="job-action">{unlocked ? <PlannedBadge /> : <Icon name="lock" />}</div>
-              <button type="button" disabled>{current ? '選択中' : unlocked ? '変更（今後実装予定）' : `Lv.${job.unlockLevel}が必要`}</button>
-            </Panel>
-          )
-        })}
-      </div>
-    </AppShell>
-  )
+const icons: Record<JobId, IconName> = { unemployed: 'wanderer', warrior: 'warrior', mage: 'mage', hunter: 'hunter', paladin: 'paladin', spellblade: 'spellblade' }
+export function JobsScreen({ player, onChange, onUnlockTest, onBack }: { player: PlayerState; onChange: (job: JobId) => void; onUnlockTest: () => void; onBack: () => void }) {
+  const [pending, setPending] = useState<JobId | null>(null); const current = calculateStats(player)
+  return <AppShell><ScreenHeader title="職業変更" subtitle={`現在の職業：${JOBS[player.job].name}`} onBack={onBack} /><p className="screen-intro">職業変更後はHPが全回復し、非対応装備は自動的に外れます。</p>{player.level < 30 && <button type="button" className="test-level-button" onClick={onUnlockTest}>開発テスト：Lv.30にする</button>}<div className="job-list">{(Object.keys(JOBS) as JobId[]).map((id) => { const job = JOBS[id]; const unlocked = player.level >= job.unlockLevel; const selected = player.job === id; const preview = calculateStats(unlocked && !selected ? changeJob(player, id) : player); return <Panel className={`job-card ${unlocked ? '' : 'is-locked'}`} key={id}><div className="job-icon"><Icon name={icons[id]} size="large" /></div><div className="job-copy"><div><h2>{job.name}</h2>{selected && <span className="current-badge">現在</span>}</div><p>{unlocked ? `HP ${current.maxHp}→${preview.maxHp} / 物理 ${current.physical}→${preview.physical} / 魔法 ${current.magic}→${preview.magic}` : `Lv.${job.unlockLevel}で解放`}</p></div><div className="job-action">{!unlocked && <Icon name="lock" />}</div><button type="button" disabled={!unlocked || selected} onClick={() => setPending(id)}>{selected ? '選択中' : unlocked ? 'この職業へ変更' : `Lv.${job.unlockLevel}が必要`}</button></Panel> })}</div>{pending && <div className="modal-layer"><Panel className="dialog-panel" role="alertdialog" aria-modal="true"><h2>{JOBS[pending].name}へ変更しますか？</h2><p>非対応装備を外し、HPを全回復します。</p><div className="dialog-actions"><button onClick={() => setPending(null)}>キャンセル</button><button onClick={() => { onChange(pending); setPending(null) }}>変更する</button></div></Panel></div>}</AppShell>
 }

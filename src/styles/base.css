@@ -143,6 +143,11 @@ h1, h2, p { margin-top: 0; }
 .attack-button span { font-size: .74rem; font-weight: 800; }.attack-button small { font-size: .53rem; }
 .skill-bar { width: min(100%, 400px); min-height: 42px; display: grid; grid-template-columns: 1fr 78px 78px; gap: 5px; margin: 0 auto; padding: 5px; color: var(--muted); background: #050608; border: 2px solid #fff; }
 .skill-bar > span { display: flex; align-items: center; padding-left: 7px; font-size: .65rem; }.skill-bar button { color: #888; background: #191a1e; border: 1px dashed #666; font-size: .58rem; }
+.skill-bar--active { display: flex; overflow-x: auto; gap: 6px; scrollbar-width: thin; }
+.skill-bar--active > button { flex: 0 0 82px; min-height: 38px; display: grid; place-items: center; color: #fff; border-style: solid; touch-action: pan-x; }
+.skill-bar--active > button.is-active { background: #1e5935; border-color: #8ff0a8; }.skill-bar--active > button:disabled { color: #999; opacity: .65; }
+.skill-bar--active button strong { font-size: .62rem; }.skill-bar--active button small { font-size: .5rem; }
+.level-toast { position: fixed; z-index: 40; top: 18%; left: 50%; padding: 10px 18px; transform: translateX(-50%); color: #fff3b0; background: #050608; border: 2px solid var(--gold); box-shadow: 4px 4px #000; font-weight: 800; }
 .modal-layer { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(0, 0, 0, .78); }
 .modal-layer--front { z-index: 30; }
 .exploration-menu, .dialog-panel { width: min(100%, 360px); padding: 14px; background: #050608; box-shadow: 5px 5px 0 #000; }
@@ -173,6 +178,7 @@ h1, h2, p { margin-top: 0; }
 .equipment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .equipment-slot { min-height: 116px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 11px; text-align: center; border-top-width: 3px; }
 .equipment-slot small { color: var(--muted); font-size: .63rem; }.equipment-slot strong { font-size: .76rem; }
+.equipment-slot:not(:disabled) { color: #fff; cursor: pointer; }.equipment-slot:disabled { color: #fff; opacity: 1; }.equipment-slot em { color: var(--muted); font-size: .55rem; font-style: normal; }
 .rarity-common { border-top-color: #cbd5db; }.rarity-empty { border-top-color: #686b70; }
 .inventory-heading { margin-top: 20px; }.item-count { color: var(--muted); font: .64rem ui-monospace, monospace; text-transform: uppercase; }
 .category-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; margin-bottom: 9px; background: #050608; border: 2px solid var(--border); border-radius: 2px; }
@@ -180,6 +186,10 @@ h1, h2, p { margin-top: 0; }
 .category-tabs button.is-active { color: #fff; background: var(--selected); border-color: #fff; font-weight: 800; }
 .empty-inventory { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 20px; text-align: center; border-style: dashed; }
 .empty-inventory strong { font-size: .82rem; }.empty-inventory p { margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.55; }
+.inventory-search { width: 100%; min-height: 42px; margin-bottom: 8px; padding: 8px 10px; color: #fff; background: #0b0d10; border: 1px solid #fff; }
+.inventory-list { display: grid; gap: 7px; }.inventory-item { min-height: 58px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 9px 11px; color: #fff; text-align: left; cursor: pointer; border-left-width: 4px; }.inventory-item span, .inventory-item small { color: var(--muted); font-size: .61rem; }.inventory-item small { grid-column: 1 / -1; }
+.item-detail { max-height: calc(100dvh - 32px); overflow-y: auto; }.item-actions { display: grid; gap: 6px; }.slot-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 9px 0; }.slot-choice p { grid-column: 1 / -1; margin: 0; }.error-text { color: #ff9b9b !important; }
+.rarity-rare { border-color: #62aef1; }.rarity-epic { border-color: #bd79f0; }.rarity-legendary { border-color: #f0c95e; }
 
 /* ステータス */
 .status-profile { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 14px; margin-bottom: 9px; }
@@ -193,6 +203,7 @@ h1, h2, p { margin-top: 0; }
 
 /* 職業 */
 .job-list { display: grid; gap: 8px; }
+.test-level-button { width: 100%; min-height: 40px; margin: 0 0 9px; color: #ffe9a3; background: #2b2414; border: 1px dashed var(--gold); cursor: pointer; }
 .job-card { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 11px; }
 .job-card.is-locked { opacity: .5; filter: grayscale(.8); }.job-icon { width: 46px; height: 46px; display: grid; place-items: center; background: #17191d; border: 1px solid #777; border-radius: 2px; }
 .job-copy > div { display: flex; align-items: center; gap: 7px; }.job-copy h2 { margin: 0; font-size: .9rem; }.job-copy p { margin: 3px 0 0; color: var(--muted); font-size: .63rem; line-height: 1.4; }

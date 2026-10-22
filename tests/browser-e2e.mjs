@@ -123,8 +123,17 @@ async function clickButton(label) {
   assert.equal(clicked, true, `${label}ボタンを操作できません。`)
 }
 
+async function clickExactButton(label) {
+  const clicked = await evaluate(`(() => { const element = [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === ${JSON.stringify(label)}); if (!element || element.disabled) return false; element.click(); return true; })()`)
+  assert.equal(clicked, true, `${label}ボタンを操作できません。`)
+}
+
 async function pressKey(key, repeat = false) {
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, repeat: ${repeat} }))`)
+}
+
+async function setInputValue(selector, value) {
+  await evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`)
 }
 
 async function clickMapCell(x, y) {
@@ -246,11 +255,18 @@ try {
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '4', 'メニュー表示中に移動しました。')
       await clickButton('ステータス確認')
       await assertScreen('ステータス')
+      await clickButton('装備画面へ')
+      await assertScreen('装備・所持品')
+      assert.match(await evaluate("document.body.innerText"), /探索中：閲覧のみ/, '探索中ステータス経由で装備変更が可能になりました。')
+      await evaluate('history.back()')
+      await assertScreen('ステータス')
       await clickButton('前の画面へ戻る')
       await assertExplorationScreen()
       assert.equal(await evaluate("document.querySelector('.exploration-menu') !== null"), true, 'ステータスから探索メニューへ戻りません。')
       await clickButton('所持品確認')
       await assertScreen('装備・所持品')
+      assert.match(await evaluate("document.body.innerText"), /探索中：閲覧のみ/, '探索中の所持品が閲覧専用ではありません。')
+      assert.equal(await evaluate("document.querySelectorAll('.equipment-slot:not(:disabled)').length"), 0, '探索中に装備解除が可能です。')
       await clickButton('前の画面へ戻る')
       await assertExplorationScreen()
       await clickButton('ダンジョン情報')
@@ -270,13 +286,35 @@ try {
       await assertScreen('町メニュー')
       continue
     }
-    if (heading === '職業変更') await assertAllDisabled('.job-card > button', 6, '職業変更操作')
+    if (heading === '装備・所持品') {
+      assert.match(await evaluate("document.querySelector('.screen-intro').innerText"), /開発テスト用装備/, 'テスト装備が正式報酬と区別されていません。')
+      await clickExactButton('防具')
+      await setInputValue('.inventory-search', '試験用軽鎧')
+      await clickButton('試験用軽鎧')
+      await clickButton('お気に入り登録')
+      assert.equal(await evaluate("document.querySelector('.item-detail button:nth-of-type(3)').disabled"), true, 'お気に入り装備を廃棄できます。')
+      await clickButton('装備する')
+      await setInputValue('.inventory-search', '')
+      await clickExactButton('アクセサリー')
+      await clickButton('試験護符・戦技'); await clickButton('装備する')
+      await clickButton('試験護符・治癒'); await clickButton('装備する')
+      assert.equal(await evaluate("[...document.querySelectorAll('.equipment-slot strong')].filter((node) => node.textContent.includes('試験護符')).length"), 2, 'アクセサリー2枠へ装備できません。')
+    }
+    if (heading === '職業変更') {
+      await clickButton('開発テスト：Lv.30にする')
+      await waitFor("[...document.querySelectorAll('.job-card')].every((card) => !card.classList.contains('is-locked'))", '職業の解放条件を反映できません。')
+      const clicked = await evaluate(`(() => { const card = [...document.querySelectorAll('.job-card')].find((node) => node.querySelector('h2')?.textContent === '戦士'); const button = card?.querySelector('button'); if (!button || button.disabled) return false; button.click(); return true; })()`)
+      assert.equal(clicked, true, '解放済み職業を選択できません。')
+      await clickButton('変更する')
+      await waitFor("document.querySelector('header')?.innerText.includes('現在の職業：戦士')", '職業変更が画面へ反映されません。')
+    }
     await clickButton('前の画面へ戻る')
     await assertScreen('町メニュー')
   }
 
   await clickButton('ステータス')
   await assertScreen('ステータス')
+  assert.match(await evaluate("document.body.innerText"), /戦士[\s\S]*Lv\.30[\s\S]*強撃[\s\S]*気絶撃/, 'レベル・職業・装備スキルがステータスへ反映されていません。')
   await captureScreen('screen-status')
   await clickButton('装備画面へ')
   await assertScreen('装備・所持品')
@@ -316,6 +354,16 @@ try {
     await clickButton('テスト探索')
     await assertExplorationScreen()
     assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '再探索時にターンが初期化されていません。')
+    assert.ok(await evaluate("document.querySelectorAll('.skill-bar--active button').length >= 7"), '装備由来スキルが探索欄へ反映されていません。')
+    assert.equal(await evaluate("document.querySelector('.skill-bar--active').scrollWidth > document.querySelector('.skill-bar--active').clientWidth"), true, 'スキル欄が横スクロール可能ではありません。')
+    await clickButton('強撃')
+    assert.equal(await evaluate("[...document.querySelectorAll('.skill-bar--active button')].find((button) => button.textContent.includes('強撃')).classList.contains('is-active')"), true, 'スキル対象選択を開始できません。')
+    await clickButton('強撃')
+    assert.equal(await evaluate("[...document.querySelectorAll('.skill-bar--active button')].find((button) => button.textContent.includes('強撃')).classList.contains('is-active')"), false, 'スキル再押下で選択解除できません。')
+    await evaluate(`(() => { const button = [...document.querySelectorAll('.skill-bar--active button')].find((node) => node.textContent.includes('強撃')); button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); })()`)
+    await waitFor("document.querySelector('.skill-info') !== null", 'スキル長押し相当の説明表示が開きません。')
+    assert.match(await evaluate("document.querySelector('.skill-info').innerText"), /物理2倍[\s\S]*クールダウン：3/, 'スキル説明が不正です。')
+    await clickButton('閉じる')
     await captureScreen(`exploration-${width}x844`)
     await evaluate('history.back()')
     await assertScreen('ダンジョン')
@@ -327,7 +375,7 @@ try {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     writeFileSync(process.env.SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'))
   }
-  console.log('ブラウザE2E: 360/390/430×844で20×20描画、敵情報、通常攻撃、黄/赤予告、退避、移動・衝突、メニュー中停止、帰還、履歴、無効操作、横幅、ブラウザエラーなしを確認しました。')
+  console.log('ブラウザE2E: 装備変更・検索・お気に入り保護・アクセサリー2枠、職業解放/変更、ステータス反映、探索中の変更禁止、スキル選択/取消/説明/横スクロール、360/390/430×844の20×20描画、既存戦闘・履歴・ブラウザエラーなしを確認しました。')
 } finally {
   socket.close()
   if (browser.exitCode === null) {

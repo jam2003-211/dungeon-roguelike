@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createInitialNavigation, getPreviousNavigation, navigate, readNavigationState, type NavigationState, type ScreenId } from './navigation'
-import { attackCell, createCombatState, moveCombatPlayer, type CombatState } from './game/combat/combat'
+import { createTestEnemies } from './game/combat/combat'
+import { attackWithWeapon, createBattleState, moveBattlePlayer, useSkill, type BattleState } from './game/battle'
 import type { Direction } from './game/exploration'
+import { calculateStats, changeJob, createPlayerState, type JobId, type PlayerState, type SkillId } from './game/player'
 import { DungeonScreen } from './screens/DungeonScreen'
 import { EquipmentScreen } from './screens/EquipmentScreen'
 import { ExplorationResultScreen } from './screens/ExplorationResultScreen'
@@ -16,9 +18,11 @@ const initialNavigation = createInitialNavigation()
 
 function App() {
   const [navigation, setNavigation] = useState<NavigationState>(initialNavigation)
-  const [exploration, setExploration] = useState<CombatState>(createCombatState)
+  const [player, setPlayer] = useState<PlayerState>(createPlayerState)
+  const [exploration, setExploration] = useState<BattleState>(() => createBattleState(createPlayerState(), createTestEnemies()))
   const [explorationMenuOpen, setExplorationMenuOpen] = useState(false)
   const [resultTurn, setResultTurn] = useState(0)
+  const [resultExperience, setResultExperience] = useState(0)
   const [resultKind, setResultKind] = useState<'任意帰還' | '探索失敗'>('任意帰還')
 
   useEffect(() => {
@@ -51,39 +55,51 @@ function App() {
   }, [navigation])
 
   const startTestExploration = useCallback(() => {
-    setExploration(createCombatState())
+    setExploration(createBattleState(player, createTestEnemies()))
     setExplorationMenuOpen(false)
     const next = navigate(navigation, 'exploration')
     window.history.pushState(next, '')
     setNavigation(next)
-  }, [navigation])
+  }, [navigation, player])
 
   const handleMove = useCallback((direction: Direction) => {
-    setExploration((current) => moveCombatPlayer(current, direction))
+    setExploration((current) => moveBattlePlayer(current, direction))
   }, [])
 
   const handleAttack = useCallback((x: number, y: number) => {
-    setExploration((current) => attackCell(current, { x, y }))
+    setExploration((current) => attackWithWeapon(current, { x, y }))
   }, [])
 
+  const handleSkill = useCallback((id: SkillId, x?: number, y?: number) => { setExploration((current) => useSkill(current, id, x === undefined || y === undefined ? undefined : { x, y })) }, [])
+
   useEffect(() => {
-    if (navigation.current !== 'exploration' || !exploration.finished) return
-    setResultTurn(exploration.turn)
+    if (navigation.current !== 'exploration' || !exploration.combat.finished) return
+    setPlayer(exploration.player)
+    setResultTurn(exploration.combat.turn)
+    setResultExperience(exploration.experienceEarned)
     setResultKind('探索失敗')
     setExplorationMenuOpen(false)
     const next: NavigationState = { current: 'explorationResult', previous: navigation.previous }
     window.history.replaceState(next, '')
     setNavigation(next)
-  }, [exploration.finished, exploration.turn, navigation.current, navigation.previous])
+  }, [exploration, navigation.current, navigation.previous])
 
   const finishExploration = useCallback(() => {
-    setResultTurn(exploration.turn)
+    setPlayer(exploration.player)
+    setResultTurn(exploration.combat.turn)
+    setResultExperience(exploration.experienceEarned)
     setResultKind('任意帰還')
     setExplorationMenuOpen(false)
     const next: NavigationState = { current: 'explorationResult', previous: navigation.previous }
     window.history.replaceState(next, '')
     setNavigation(next)
-  }, [exploration.turn, navigation.previous])
+  }, [exploration, navigation.previous])
+
+  const updatePlayer = useCallback((next: PlayerState) => setPlayer(next), [])
+  const updateJob = useCallback((job: JobId) => setPlayer((current) => changeJob(current, job)), [])
+  const unlockJobsForTest = useCallback(() => setPlayer((current) => { const next = { ...current, level: 30, experience: 0 }; return { ...next, currentHp: calculateStats(next).maxHp } }), [])
+  const viewingExplorationData = navigation.current === 'exploration' || navigation.previous.includes('exploration')
+  const visiblePlayer = viewingExplorationData ? exploration.player : player
 
   const returnToTown = useCallback(() => {
     const next: NavigationState = { current: 'town', previous: ['title'] }
@@ -95,19 +111,19 @@ function App() {
     case 'title':
       return <TitleScreen onStart={() => openScreen('town')} onSettings={() => openScreen('settings')} />
     case 'town':
-      return <TownScreen onNavigate={openScreen} />
+      return <TownScreen player={player} onNavigate={openScreen} />
     case 'dungeon':
       return <DungeonScreen onBack={goBack} onStartTest={startTestExploration} />
     case 'exploration':
-      return <ExplorationScreen exploration={exploration} menuOpen={explorationMenuOpen} onMove={handleMove} onAttack={handleAttack} onMenuOpenChange={setExplorationMenuOpen} onOpenStatus={() => openScreen('status')} onOpenEquipment={() => openScreen('equipment')} onReturn={finishExploration} />
+      return <ExplorationScreen battle={exploration} menuOpen={explorationMenuOpen} onMove={handleMove} onAttack={handleAttack} onSkill={handleSkill} onMenuOpenChange={setExplorationMenuOpen} onOpenStatus={() => openScreen('status')} onOpenEquipment={() => openScreen('equipment')} onReturn={finishExploration} onClearNotice={() => setExploration((current) => ({ ...current, levelNotices: [] }))} />
     case 'explorationResult':
-      return <ExplorationResultScreen turn={resultTurn} resultKind={resultKind} onTown={returnToTown} />
+      return <ExplorationResultScreen turn={resultTurn} experience={resultExperience} resultKind={resultKind} onTown={returnToTown} />
     case 'equipment':
-      return <EquipmentScreen onBack={goBack} />
+      return <EquipmentScreen player={visiblePlayer} readOnly={viewingExplorationData} onChange={updatePlayer} onBack={goBack} />
     case 'status':
-      return <StatusScreen onBack={goBack} onOpenEquipment={() => openScreen('equipment')} />
+      return <StatusScreen player={visiblePlayer} onBack={goBack} onOpenEquipment={() => openScreen('equipment')} />
     case 'jobs':
-      return <JobsScreen onBack={goBack} />
+      return <JobsScreen player={player} onChange={updateJob} onUnlockTest={unlockJobsForTest} onBack={goBack} />
     case 'settings':
       return <SettingsScreen onBack={goBack} />
   }

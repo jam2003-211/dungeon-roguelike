@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ENEMY_DEFINITIONS, getWarningLevel, isPlayerAttackCell, type EnemyState } from '../game/combat/combat'
+import { ENEMY_DEFINITIONS, getWarningLevel, positionKey, type EnemyState } from '../game/combat/combat'
 import { FOREST_MAP, MAP_SIZE, type Position, type TileType } from '../game/forestMap'
 
 const CANVAS_SIZE = 400
@@ -26,10 +26,11 @@ function drawObstacle(context: CanvasRenderingContext2D, x: number, y: number, t
   }
 }
 
-function drawHighlights(context: CanvasRenderingContext2D, player: Position, enemies: EnemyState[], attackMode: boolean) {
+function drawHighlights(context: CanvasRenderingContext2D, enemies: EnemyState[], targetCells: Position[]) {
+  const targets = new Set(targetCells.map(positionKey))
   for (let y = 0; y < MAP_SIZE; y += 1) for (let x = 0; x < MAP_SIZE; x += 1) {
     const position = { x, y }; const left = x * TILE_SIZE; const top = y * TILE_SIZE
-    if (attackMode && isPlayerAttackCell(player, position)) { context.fillStyle = 'rgba(40, 220, 105, .48)'; context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2) }
+    if (targets.has(positionKey(position))) { context.fillStyle = 'rgba(40, 220, 105, .48)'; context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2) }
     const warning = getWarningLevel(enemies, position)
     if (warning) { context.fillStyle = warning === 'red' ? 'rgba(255, 35, 35, .72)' : 'rgba(255, 215, 40, .58)'; context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2) }
   }
@@ -45,32 +46,32 @@ function drawEnemy(context: CanvasRenderingContext2D, enemy: EnemyState, image: 
   context.fillStyle = '#120b0b'; context.fillRect(barLeft, barTop, TILE_SIZE - 4, 3); context.fillStyle = '#e94c4c'; context.fillRect(barLeft, barTop, (TILE_SIZE - 4) * Math.max(0, enemy.hp / enemy.maxHp), 3)
 }
 
-function drawMap(context: CanvasRenderingContext2D, player: Position, enemies: EnemyState[], attackMode: boolean, selectedEnemyId: string | null, images: Map<string, HTMLImageElement>, playerImage: HTMLImageElement | null) {
+function drawMap(context: CanvasRenderingContext2D, player: Position, enemies: EnemyState[], targetCells: Position[], selectedEnemyId: string | null, images: Map<string, HTMLImageElement>, playerImage: HTMLImageElement | null) {
   context.imageSmoothingEnabled = false; context.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
   for (let y = 0; y < MAP_SIZE; y += 1) for (let x = 0; x < MAP_SIZE; x += 1) {
     const tile = FOREST_MAP[y][x]; drawGround(context, x, y, tile); if (tile !== 'grass' && tile !== 'path') drawObstacle(context, x, y, tile)
     context.strokeStyle = 'rgba(4, 12, 7, .22)'; context.lineWidth = 1; context.strokeRect(x * TILE_SIZE + .5, y * TILE_SIZE + .5, TILE_SIZE - 1, TILE_SIZE - 1)
   }
-  drawHighlights(context, player, enemies, attackMode)
+  drawHighlights(context, enemies, targetCells)
   for (const enemy of enemies) drawEnemy(context, enemy, images.get(enemy.kind), selectedEnemyId === enemy.id)
   const left = player.x * TILE_SIZE; const top = player.y * TILE_SIZE
   context.fillStyle = '#f5d76e'; context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2); context.fillStyle = '#111'; context.fillRect(left + 3, top + 3, TILE_SIZE - 6, TILE_SIZE - 6)
   if (playerImage?.complete && playerImage.naturalWidth > 0) context.drawImage(playerImage, left + 2, top + 2, TILE_SIZE - 4, TILE_SIZE - 4)
 }
 
-interface DungeonMapCanvasProps { player: Position; enemies: EnemyState[]; attackMode: boolean; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
+interface DungeonMapCanvasProps { player: Position; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
 
-export function DungeonMapCanvas({ player, enemies, attackMode, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
+export function DungeonMapCanvas({ player, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const yellowWarnings = enemies.filter((enemy) => enemy.warning && enemy.warning.remaining >= 2).length
   const redWarnings = enemies.filter((enemy) => enemy.warning?.remaining === 1).length
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext('2d'); if (!canvas || !context) return
-    const playerImage = new Image(); const images = new Map<string, HTMLImageElement>(); const redraw = () => drawMap(context, player, enemies, attackMode, selectedEnemyId, images, playerImage)
+    const playerImage = new Image(); const images = new Map<string, HTMLImageElement>(); const redraw = () => drawMap(context, player, enemies, targetCells, selectedEnemyId, images, playerImage)
     playerImage.addEventListener('load', redraw); playerImage.src = '/assets/icons/player.png'
     for (const definition of Object.values(ENEMY_DEFINITIONS)) { const image = new Image(); image.addEventListener('load', redraw); image.src = definition.sprite; images.set(definition.kind, image) }
     redraw(); return () => { playerImage.removeEventListener('load', redraw); for (const image of images.values()) image.removeEventListener('load', redraw) }
-  }, [attackMode, enemies, player, selectedEnemyId])
+  }, [enemies, player, selectedEnemyId, targetCells])
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect(); const x = Math.floor((event.clientX - bounds.left) * MAP_SIZE / bounds.width); const y = Math.floor((event.clientY - bounds.top) * MAP_SIZE / bounds.height)
     if (x >= 0 && y >= 0 && x < MAP_SIZE && y < MAP_SIZE) onCellClick({ x, y })
