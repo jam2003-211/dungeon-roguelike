@@ -248,6 +248,10 @@ try {
       assert.equal(await evaluate("document.querySelector('.next-floor-button') === null"), true, '階段以外で次階ボタンが表示されています。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.layout.length"), 400, '20×20の生成マップではありません。')
       const initialLayout = await evaluate("document.querySelector('.dungeon-map').dataset.layout")
+      assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.theme"), 'forest', '森タイルのテーマがCanvasへ反映されません。')
+      await waitFor("performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/forest_grass_floor.png'))", '森タイル画像がブラウザで読み込まれません。')
+      await waitFor("Number(document.querySelector('.dungeon-map').dataset.loadedTileCount) === 35", '35種のタイル素材をCanvasへ読み込めません。')
+      assert.match(await evaluate("document.querySelector('.dungeon-map').dataset.stairsTile"), /^forest_stairs_(grass|dirt)$/, '森の階段が下り階段画像ではありません。')
       const initialEnemies = await evaluate("document.querySelector('.dungeon-map').dataset.enemies")
       const chest = await evaluate("JSON.parse(document.querySelector('.dungeon-map').dataset.chest)")
       await clickMapCell(chest.x, chest.y)
@@ -360,6 +364,25 @@ try {
       await clickButton('変更する')
       await waitFor("document.querySelector('header')?.innerText.includes('現在の職業：戦士')", '職業変更が画面へ反映されません。')
     }
+    await clickButton('前の画面へ戻る')
+    await assertScreen('町メニュー')
+  }
+
+  for (const [stockId, theme, tile] of [[2, 'ruins', 'ruins_stone_floor.png'], [3, 'castle', 'castle_floor.png']]) {
+    await clickButton('ダンジョン')
+    await assertScreen('ダンジョン')
+    await setInputValue(`.stock-card--${stockId} input`, '7')
+    await evaluate(`document.querySelector('.stock-card--${stockId} .planned-actions button').click()`)
+    await waitFor(`!document.querySelector('.stock-card--${stockId} .planned-actions button:nth-child(2)').disabled`, `${theme}ストックを生成できません。`)
+    await evaluate(`document.querySelector('.stock-card--${stockId} .planned-actions button:nth-child(2)').click()`)
+    await waitFor(`document.querySelector('.dungeon-map')?.dataset.theme === '${theme}'`, `${theme}のマップが表示されません。`)
+    await waitFor(`performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/${tile}'))`, `${theme}タイル画像がブラウザで読み込まれません。`)
+    await waitFor("Number(document.querySelector('.dungeon-map').dataset.loadedTileCount) === 35", `${theme}の35種タイル素材を読み込めません。`)
+    assert.equal(await evaluate(`'${theme}' === 'ruins' ? document.querySelector('.dungeon-map').dataset.stairsTile === 'ruins_stairs_down' : /^castle_stairs_(down|alt)$/.test(document.querySelector('.dungeon-map').dataset.stairsTile)`), true, `${theme}階段画像が下り階段の想定と異なります。`)
+    assert.equal(await evaluate('document.querySelectorAll(".dungeon-map").length === 1 && document.querySelector(".dungeon-map").width === 400'), true, `${theme}マップの20×20表示が不正です。`)
+    await captureScreen(`dungeon-${theme}`)
+    await evaluate('history.back()')
+    await assertScreen('ダンジョン')
     await clickButton('前の画面へ戻る')
     await assertScreen('町メニュー')
   }

@@ -64,6 +64,44 @@ export const skillAssetPaths: Readonly<Record<SkillId, string>> = {
   guard: assetUrl('assets/skills/guard.png'),
 }
 
+export const dungeonTileAssetPaths = {
+  forest_grass_floor: assetUrl('assets/dungeon-tiles/forest_grass_floor.png'),
+  forest_dirt_floor: assetUrl('assets/dungeon-tiles/forest_dirt_floor.png'),
+  forest_grass_dense: assetUrl('assets/dungeon-tiles/forest_grass_dense.png'),
+  forest_tree: assetUrl('assets/dungeon-tiles/forest_tree.png'),
+  forest_rock: assetUrl('assets/dungeon-tiles/forest_rock.png'),
+  forest_stump: assetUrl('assets/dungeon-tiles/forest_stump.png'),
+  forest_bush: assetUrl('assets/dungeon-tiles/forest_bush.png'),
+  forest_flower: assetUrl('assets/dungeon-tiles/forest_flower.png'),
+  forest_pebbles: assetUrl('assets/dungeon-tiles/forest_pebbles.png'),
+  forest_water: assetUrl('assets/dungeon-tiles/forest_water.png'),
+  forest_stairs_grass: assetUrl('assets/dungeon-tiles/forest_stairs_grass.png'),
+  forest_stairs_dirt: assetUrl('assets/dungeon-tiles/forest_stairs_dirt.png'),
+  ruins_stone_floor: assetUrl('assets/dungeon-tiles/ruins_stone_floor.png'),
+  ruins_mossy_stone_floor: assetUrl('assets/dungeon-tiles/ruins_mossy_stone_floor.png'),
+  ruins_carved_stone_floor: assetUrl('assets/dungeon-tiles/ruins_carved_stone_floor.png'),
+  ruins_cracked_stone: assetUrl('assets/dungeon-tiles/ruins_cracked_stone.png'),
+  ruins_grass_moss: assetUrl('assets/dungeon-tiles/ruins_grass_moss.png'),
+  ruins_stone_wall: assetUrl('assets/dungeon-tiles/ruins_stone_wall.png'),
+  ruins_broken_stone_wall: assetUrl('assets/dungeon-tiles/ruins_broken_stone_wall.png'),
+  ruins_column: assetUrl('assets/dungeon-tiles/ruins_column.png'),
+  ruins_rubble: assetUrl('assets/dungeon-tiles/ruins_rubble.png'),
+  ruins_broken_column: assetUrl('assets/dungeon-tiles/ruins_broken_column.png'),
+  ruins_stairs_down: assetUrl('assets/dungeon-tiles/ruins_stairs_down.png'),
+  castle_floor: assetUrl('assets/dungeon-tiles/castle_floor.png'),
+  castle_red_carpet: assetUrl('assets/dungeon-tiles/castle_red_carpet.png'),
+  castle_pattern_floor: assetUrl('assets/dungeon-tiles/castle_pattern_floor.png'),
+  castle_wall: assetUrl('assets/dungeon-tiles/castle_wall.png'),
+  castle_broken_wall: assetUrl('assets/dungeon-tiles/castle_broken_wall.png'),
+  castle_banner_column: assetUrl('assets/dungeon-tiles/castle_banner_column.png'),
+  castle_statue: assetUrl('assets/dungeon-tiles/castle_statue.png'),
+  castle_torch: assetUrl('assets/dungeon-tiles/castle_torch.png'),
+  castle_banner: assetUrl('assets/dungeon-tiles/castle_banner.png'),
+  castle_decorative_wall: assetUrl('assets/dungeon-tiles/castle_decorative_wall.png'),
+  castle_stairs_down: assetUrl('assets/dungeon-tiles/castle_stairs_down.png'),
+  castle_stairs_alt: assetUrl('assets/dungeon-tiles/castle_stairs_alt.png'),
+} as const
+
 export function equipmentAssetPath(item: EquipmentItem): string | null {
   if (item.category === 'weapon') return weaponAssetPaths[item.subtype as WeaponType]
   if (item.category === 'armor') return armorAssetPaths[item.subtype as ArmorType]

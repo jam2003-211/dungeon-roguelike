@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react'
-import { enemyAssetPaths, enemyFallbackPaths, jobAssetPaths, loadCachedImage } from '../assets'
+import { dungeonTileAssetPaths, enemyAssetPaths, enemyFallbackPaths, jobAssetPaths, loadCachedImage } from '../assets'
 import { ENEMY_DEFINITIONS, getWarningLevel, positionKey, type EnemyState } from '../game/combat/combat'
 import { MAP_SIZE, type ForestMap, type Position, type TileType } from '../game/forestMap'
 import type { LootChest } from '../game/loot'
 import type { JobId } from '../game/player'
+import type { DungeonTheme } from '../game/dungeon'
+import { getDungeonStairsVisual, getDungeonTileVisual } from '../game/dungeonTileVisuals'
 
 const CANVAS_SIZE = 400
 const TILE_SIZE = CANVAS_SIZE / MAP_SIZE
+type DungeonTileKey = keyof typeof dungeonTileAssetPaths
 
 function drawGround(context: CanvasRenderingContext2D, x: number, y: number, tile: TileType) {
   const left = x * TILE_SIZE; const top = y * TILE_SIZE; const alternate = (x + y) % 2 === 0
@@ -54,15 +57,20 @@ function drawEnemy(context: CanvasRenderingContext2D, enemy: EnemyState, image: 
   context.fillStyle = '#120b0b'; context.fillRect(barLeft, barTop, TILE_SIZE - 4, 3); context.fillStyle = '#e94c4c'; context.fillRect(barLeft, barTop, (TILE_SIZE - 4) * Math.max(0, enemy.hp / enemy.maxHp), 3)
 }
 
-function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Position, player: Position, enemies: EnemyState[], targetCells: Position[], selectedEnemyId: string | null, images: Map<string, HTMLImageElement>, playerImage: HTMLImageElement | null, chest: LootChest | null) {
+function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Position, theme: DungeonTheme, floor: number, player: Position, enemies: EnemyState[], targetCells: Position[], selectedEnemyId: string | null, images: Map<string, HTMLImageElement>, playerImage: HTMLImageElement | null, chest: LootChest | null) {
   context.imageSmoothingEnabled = false; context.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
   for (let y = 0; y < MAP_SIZE; y += 1) for (let x = 0; x < MAP_SIZE; x += 1) {
-    const tile = map[y][x]; drawGround(context, x, y, tile); if (!['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)) drawObstacle(context, x, y, tile)
+    const tile = map[y][x]; const passable = ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile); const image = images.get(getDungeonTileVisual(theme, floor, x, y, passable))
+    if (image?.complete && image.naturalWidth > 0) context.drawImage(image, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+    else { drawGround(context, x, y, tile); if (!['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)) drawObstacle(context, x, y, tile) }
     context.strokeStyle = 'rgba(4, 12, 7, .22)'; context.lineWidth = 1; context.strokeRect(x * TILE_SIZE + .5, y * TILE_SIZE + .5, TILE_SIZE - 1, TILE_SIZE - 1)
   }
   drawHighlights(context, enemies, targetCells)
   const stairLeft = stairs.x * TILE_SIZE; const stairTop = stairs.y * TILE_SIZE
-  context.fillStyle = '#17191d'; context.fillRect(stairLeft + 3, stairTop + 3, 14, 14); context.fillStyle = '#f0d372'; context.fillRect(stairLeft + 5, stairTop + 5, 10, 3); context.fillRect(stairLeft + 7, stairTop + 9, 8, 3); context.fillRect(stairLeft + 9, stairTop + 13, 6, 3)
+  const stairKey: DungeonTileKey = getDungeonStairsVisual(theme, floor, map[stairs.y][stairs.x] === 'path')
+  const stairImage = images.get(stairKey)
+  if (stairImage?.complete && stairImage.naturalWidth > 0) context.drawImage(stairImage, stairLeft, stairTop, TILE_SIZE, TILE_SIZE)
+  else { context.fillStyle = '#17191d'; context.fillRect(stairLeft + 3, stairTop + 3, 14, 14); context.fillStyle = '#f0d372'; context.fillRect(stairLeft + 5, stairTop + 5, 10, 3); context.fillRect(stairLeft + 7, stairTop + 9, 8, 3); context.fillRect(stairLeft + 9, stairTop + 13, 6, 3) }
   if (chest) {
     const x = chest.position.x * TILE_SIZE; const y = chest.position.y * TILE_SIZE
     context.fillStyle = '#2c180b'; context.fillRect(x + 2, y + 5, 16, 13)
@@ -75,19 +83,26 @@ function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Posi
   if (playerImage?.complete && playerImage.naturalWidth > 0) context.drawImage(playerImage, left + 2, top + 2, TILE_SIZE - 4, TILE_SIZE - 4)
 }
 
-interface DungeonMapCanvasProps { chest: LootChest | null; map: ForestMap; stairs: Position; themeName: string; player: Position; playerJob: JobId; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
+interface DungeonMapCanvasProps { chest: LootChest | null; map: ForestMap; stairs: Position; themeName: string; floor: number; player: Position; playerJob: JobId; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
 
-export function DungeonMapCanvas({ chest, map, stairs, themeName, player, playerJob, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
+export function DungeonMapCanvas({ chest, map, stairs, themeName, floor, player, playerJob, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const theme: DungeonTheme = map.flat().includes('ruinsFloor') ? 'ruins' : map.flat().includes('castleFloor') ? 'castle' : 'forest'
   const yellowWarnings = enemies.filter((enemy) => enemy.warning && enemy.warning.remaining >= 2).length
   const redWarnings = enemies.filter((enemy) => enemy.warning?.remaining === 1).length
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext('2d'); if (!canvas || !context) return
-    const playerImage = loadCachedImage(jobAssetPaths[playerJob]); const images = new Map<string, HTMLImageElement>(); const redraw = () => drawMap(context, map, stairs, player, enemies, targetCells, selectedEnemyId, images, playerImage, chest)
+    canvas.dataset.theme = theme; canvas.dataset.floor = String(floor)
+    const playerImage = loadCachedImage(jobAssetPaths[playerJob]); const images = new Map<string, HTMLImageElement>(); const redraw = () => {
+      drawMap(context, map, stairs, theme, floor, player, enemies, targetCells, selectedEnemyId, images, playerImage, chest)
+      canvas.dataset.loadedTileCount = String(Object.keys(dungeonTileAssetPaths).filter((key) => { const image = images.get(key); return image?.complete && image.naturalWidth > 0 }).length)
+      canvas.dataset.stairsTile = getDungeonStairsVisual(theme, floor, map[stairs.y][stairs.x] === 'path')
+    }
     playerImage.addEventListener('load', redraw)
+    for (const [key, path] of Object.entries(dungeonTileAssetPaths)) { const image = loadCachedImage(path); image.addEventListener('load', redraw); images.set(key, image) }
     for (const definition of Object.values(ENEMY_DEFINITIONS)) { const image = loadCachedImage(enemyAssetPaths[definition.kind], enemyFallbackPaths[definition.kind]); image.addEventListener('load', redraw); images.set(definition.kind, image) }
     redraw(); return () => { playerImage.removeEventListener('load', redraw); for (const image of images.values()) image.removeEventListener('load', redraw) }
-  }, [chest, enemies, map, player, playerJob, selectedEnemyId, stairs, targetCells])
+  }, [chest, enemies, floor, map, player, playerJob, selectedEnemyId, stairs, targetCells, theme])
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect(); const x = Math.floor((event.clientX - bounds.left) * MAP_SIZE / bounds.width); const y = Math.floor((event.clientY - bounds.top) * MAP_SIZE / bounds.height)
     if (x >= 0 && y >= 0 && x < MAP_SIZE && y < MAP_SIZE) onCellClick({ x, y })
