@@ -267,3 +267,8 @@ h1, h2, p { margin-top: 0; }
 .save-status--error { pointer-events: auto; border: 1px solid white; padding: 8px; max-height: 30dvh; overflow-y: auto; }
 .save-status--error button { margin: 4px; min-height: 36px; }
 .town-save-info, .resume-info { color: #fff; font-size: .65rem; overflow-wrap: anywhere; }
+.pwa-update { position: fixed; z-index: 40; bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(440px, calc(100% - 24px)); padding: 8px; display: flex; align-items: center; gap: 8px; border: 1px solid #fff; background: #080808; color: #fff; font-size: .65rem; }
+.pwa-update button { flex-shrink: 0; min-height: 44px; }
+.save-status { bottom: max(2px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); }
+.app-shell { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.exploration-screen { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }

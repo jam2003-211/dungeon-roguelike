@@ -6,6 +6,7 @@ export function SaveLoadPanel({ controls }: { controls: SaveGameControls }) {
   return <div className="modal-layer"><Panel className="dialog-panel save-load-panel" role="dialog" aria-modal="true" aria-labelledby="save-load-title">
     <h2 id="save-load-title">セーブ・ロード</h2>
     <p>進行状況は自動保存されます。探索途中のデータは起動時の「探索を再開」から復元できます。</p>
+    <p>セーブデータはこの端末・ブラウザに保存されます。ブラウザデータの削除などで失われる場合があります。</p>
     <p className="save-presence">{checking ? '保存情報を確認中…' : metadata.exists ? 'セーブデータあり（1スロット）' : 'セーブデータなし'}</p>
     <p className="save-timestamp">最終保存日時：{metadata.savedAt ? new Date(metadata.savedAt).toLocaleString('ja-JP') : metadata.exists ? '不明' : '未保存'}</p>
     <fieldset disabled={busy || checking}>

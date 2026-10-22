@@ -1,4 +1,5 @@
 import { SaveStatus } from './components/SaveStatus'
+import { PwaUpdate } from './components/PwaUpdate'
 import { captureRun, restoreBattle } from './persistence/savedRun'
 import { useSaveGame } from './persistence/useSaveGame'
 import type { SaveData } from './persistence/saveData'
@@ -160,7 +161,7 @@ function App() {
     case 'settings': return <SettingsScreen onBack={goBack} />
   }
   }
-  return <>{renderScreen()}<SaveStatus controls={saveControls} /></>
+  return <>{renderScreen()}<SaveStatus controls={saveControls} /><PwaUpdate atRest={!activeRun && (navigation.current === 'town' || navigation.current === 'title')} controls={saveControls} /></>
 }
 
 export default App
