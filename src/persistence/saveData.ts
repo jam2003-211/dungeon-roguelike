@@ -2,9 +2,10 @@ import { calculateStats, canEquip, experienceToNext, JOBS, RARITY_LABELS, SUBTYP
 import { SKILLS } from '../game/skills'
 import { ENEMY_DEFINITIONS } from '../game/combat/combat'
 import { createDungeonStocks, MAX_DUNGEON_LEVEL, validateDungeon, type DungeonStock, type GeneratedDungeon } from '../game/dungeon'
+import type { SavedRun } from './savedRun'
+import { validSavedRun } from './savedRun'
 
-// 探索の一時状態は含めず、町から再探索するための確定データだけを持つ。
-export interface SaveData { schemaVersion: 1; savedAt: string; player: PlayerState; stocks: DungeonStock[] }
+export interface SaveData { schemaVersion: 2; savedAt: string; player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const integer = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0
@@ -25,7 +26,7 @@ function isJson(value: unknown, ancestors = new Set<object>()): boolean {
   return valid
 }
 
-function validItem(value: unknown): value is EquipmentItem {
+export function validItem(value: unknown): value is EquipmentItem {
   if (!record(value) || !text(value.id) || !text(value.name) || !member(value.category, subtypes) || !member(value.subtype, SUBTYPE_LABELS)) return false
   return subtypes[value.category as keyof typeof subtypes].includes(value.subtype)
     && integer(value.level, 1) && member(value.rarity, RARITY_LABELS)
@@ -87,14 +88,16 @@ function validStocks(value: unknown): value is DungeonStock[] {
 
 export function readSaveData(value: unknown): SaveData {
   if (!record(value)) throw new Error('セーブデータが破損しています。')
-  if (value.schemaVersion !== 1) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
   try {
     if (!isJson(value) || !text(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt)) || !validPlayer(value.player) || !validStocks(value.stocks)) throw new Error()
+    const run = value.schemaVersion === 1 ? null : value.run
+    if (run !== null && !validSavedRun(run, value.player, value.stocks, validItem)) throw new Error()
     // 適用先との参照共有を防ぎ、何度ロードしても同じ状態へ置き換える。
-    return JSON.parse(JSON.stringify({ schemaVersion: 1, savedAt: value.savedAt, player: value.player, stocks: value.stocks })) as SaveData
+    return JSON.parse(JSON.stringify({ schemaVersion: 2, savedAt: value.savedAt, player: value.player, stocks: value.stocks, run })) as SaveData
   } catch { throw new Error('セーブデータが破損しています。現在のデータは変更していません。') }
 }
 
-export function createSaveData(player: PlayerState, stocks: DungeonStock[], now = new Date()): SaveData {
-  return readSaveData({ schemaVersion: 1, savedAt: now.toISOString(), player, stocks })
+export function createSaveData(player: PlayerState, stocks: DungeonStock[], now = new Date(), run: SavedRun | null = null): SaveData {
+  return readSaveData({ schemaVersion: 2, savedAt: now.toISOString(), player, stocks, run })
 }

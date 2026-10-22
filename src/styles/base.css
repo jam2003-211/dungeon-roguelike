@@ -263,3 +263,7 @@ h1, h2, p { margin-top: 0; }
 .save-load-panel { max-height: calc(100dvh - 32px); overflow-y: auto; background: #080808; color: #fff; border: 2px solid #fff; border-radius: 0; overflow-wrap: anywhere; }
 .save-load-panel fieldset { display: grid; gap: 8px; padding: 0; margin: 12px 0; border: 0; min-width: 0; }
 .save-load-panel button { min-height: 44px; background: #080808; color: #fff; border: 1px solid #fff; border-radius: 0; }
+.save-status { position: fixed; z-index: 30; right: 8px; bottom: 2px; max-width: calc(100vw - 16px); padding: 2px 5px; background: #080808; color: #ddd; font-size: .6rem; pointer-events: none; }
+.save-status--error { pointer-events: auto; border: 1px solid white; padding: 8px; max-height: 30dvh; overflow-y: auto; }
+.save-status--error button { margin: 4px; min-height: 36px; }
+.town-save-info, .resume-info { color: #fff; font-size: .65rem; overflow-wrap: anywhere; }

@@ -1,3 +1,5 @@
+import { SaveStatus } from './components/SaveStatus'
+import { captureRun, restoreBattle } from './persistence/savedRun'
 import { useSaveGame } from './persistence/useSaveGame'
 import type { SaveData } from './persistence/saveData'
 import { useCallback, useEffect, useState } from 'react'
@@ -29,7 +31,7 @@ function generationRandom(): () => number {
   return () => { if (first) { first = false; return .1 }; seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 }
 }
 type ResultKind = '任意帰還' | '探索失敗' | 'ダンジョンクリア'
-interface ActiveRun { stockId: DungeonStockId; floor: number }
+interface ActiveRun { stockId: DungeonStockId; floor: number; startLevel: number }
 
 function App() {
   const [navigation, setNavigation] = useState<NavigationState>(initialNavigation)
@@ -39,13 +41,14 @@ function App() {
   const [exploration, setExploration] = useState<BattleState>(() => createBattleState(createPlayerState()))
   const [explorationMenuOpen, setExplorationMenuOpen] = useState(false)
   const [result, setResult] = useState({ turn: 0, experience: 0, floor: 1, startLevel: 1, endLevel: 1, kind: '任意帰還' as ResultKind, dungeonName: '', items: [] as EquipmentItem[] })
-  const restoreSave = useCallback((data: SaveData) => {
+  const restoreSave = useCallback((data: SaveData, enterGame: boolean) => {
     setPlayer(data.player); setStocks(data.stocks)
-    setActiveRun(null); setExploration(createBattleState(data.player)); setExplorationMenuOpen(false)
-    const next: NavigationState = { current: 'town', previous: ['title'] }
-    window.history.replaceState(next, ''); setNavigation(next)
+    setActiveRun(enterGame && data.run ? { stockId: data.run.stockId, floor: data.run.floor, startLevel: data.run.startLevel } : null)
+    setExploration(enterGame && data.run ? restoreBattle(data.player, data.run) : createBattleState(data.player)); setExplorationMenuOpen(false)
+    if (enterGame) { const next: NavigationState = { current: data.run ? 'exploration' : 'town', previous: ['title'] }; window.history.replaceState(next, ''); setNavigation(next) }
   }, [])
-  const saveControls = useSaveGame(navigation.current === 'town', player, stocks, restoreSave)
+  const savedRun = activeRun && !exploration.combat.finished ? captureRun(activeRun.stockId, activeRun.floor, exploration, activeRun.startLevel) : null
+  const saveControls = useSaveGame(navigation.current === 'town', { player: activeRun ? exploration.player : player, stocks, run: savedRun }, restoreSave)
   const activeStock = activeRun ? stocks.find((stock) => stock.id === activeRun.stockId) ?? null : null
   const activeDungeon = activeStock?.dungeon ?? null
   const activeFloor = activeDungeon && activeRun ? activeDungeon.floors[activeRun.floor - 1] : null
@@ -79,7 +82,7 @@ function App() {
     if (!stock?.dungeon || player.level < stock.unlockLevel) return
     const run = startDungeonRun(player, stock.dungeon)
     setExploration({ ...run.battle, loot: createLootState(stock.dungeon, rewardRandom) })
-    setActiveRun({ stockId, floor: run.currentFloor }); setExplorationMenuOpen(false)
+    setActiveRun({ stockId, floor: run.currentFloor, startLevel: player.level }); setExplorationMenuOpen(false)
     setStocks((current) => updateStockProgress(current, stockId, 1, stock.dungeon!.totalFloors === 1))
     const next = navigate(navigation, 'exploration'); window.history.pushState(next, ''); setNavigation(next)
   }, [navigation, player, stocks])
@@ -96,9 +99,9 @@ function App() {
 
   const showResult = useCallback((kind: ResultKind, cleared: boolean) => {
     if (!activeRun) return
-    setPlayer(exploration.player)
+    setPlayer(exploration.player); setActiveRun(null)
     setStocks((current) => updateStockProgress(current, activeRun.stockId, activeRun.floor, activeDungeon?.totalFloors === activeRun.floor, cleared))
-    setResult({ turn: exploration.combat.turn, experience: exploration.experienceEarned, floor: activeRun.floor, startLevel: player.level, endLevel: exploration.player.level, kind, dungeonName: `${activeStock?.name} Lv.${activeDungeon?.level}`, items: exploration.loot?.items ?? [] })
+    setResult({ turn: exploration.combat.turn, experience: exploration.experienceEarned, floor: activeRun.floor, startLevel: activeRun.startLevel, endLevel: exploration.player.level, kind, dungeonName: `${activeStock?.name} Lv.${activeDungeon?.level}`, items: exploration.loot?.items ?? [] })
     setExplorationMenuOpen(false)
     const next: NavigationState = { current: 'explorationResult', previous: navigation.previous }
     window.history.replaceState(next, ''); setNavigation(next)
@@ -123,10 +126,14 @@ function App() {
   const unlockJobsForTest = useCallback(() => setPlayer((current) => { const next = { ...current, level: 30, experience: 0 }; return { ...next, currentHp: calculateStats(next).maxHp } }), [])
   const viewingExplorationData = navigation.current === 'exploration' || navigation.previous.includes('exploration')
   const visiblePlayer = viewingExplorationData ? exploration.player : player
+  useEffect(() => {
+    if (activeRun && !viewingExplorationData && navigation.current !== 'explorationResult') { setPlayer(exploration.player); setActiveRun(null) }
+  }, [activeRun, viewingExplorationData, navigation.current, exploration.player])
   const returnToTown = useCallback(() => { setActiveRun(null); const next: NavigationState = { current: 'town', previous: ['title'] }; window.history.replaceState(next, ''); setNavigation(next) }, [])
 
+  const renderScreen = () => {
   switch (navigation.current) {
-    case 'title': return <TitleScreen onStart={() => openScreen('town')} onSettings={() => openScreen('settings')} />
+    case 'title': return <TitleScreen saveControls={saveControls} onStart={() => openScreen('town')} onSettings={() => openScreen('settings')} />
     case 'town': return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
     case 'dungeon': return <DungeonScreen playerLevel={player.level} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
     case 'exploration':
@@ -152,6 +159,8 @@ function App() {
     case 'jobs': return <JobsScreen player={player} onChange={updateJob} onUnlockTest={unlockJobsForTest} onBack={goBack} />
     case 'settings': return <SettingsScreen onBack={goBack} />
   }
+  }
+  return <>{renderScreen()}<SaveStatus controls={saveControls} /></>
 }
 
 export default App

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 
 // 本物のIndexedDBを同じブラウザプロファイルで読み書きする。アプリ状態の注入は行わない。
-const databaseAccess = `async (mode = 'readonly', value) => {
+export const databaseAccess = `async (mode = 'readonly', value) => {
   const { SAVE_DATABASE, SAVE_STORE, SAVE_KEY } = await import('/src/persistence/saveStorage.ts');
   const database = await new Promise((resolve, reject) => { const request = indexedDB.open(SAVE_DATABASE, 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
   try { return await new Promise((resolve, reject) => {
@@ -45,23 +45,25 @@ export async function runSaveBrowserChecks({ evaluate, command, clickButton, cli
 
   const beforeStatus = await status(); const beforeInventory = await inventory()
   const beforeDungeon = await dungeonView()
+  await waitFor("document.querySelector('.save-status')?.dataset.saving === 'false'", '自動保存が完了しません。')
   await openPanel()
-  assert.equal(await evaluate("document.querySelector('.save-presence').textContent.includes('なし')"), true)
-  assert.equal(await evaluate("[...document.querySelectorAll('.save-load-panel button')].find((button) => button.textContent === 'ロード').disabled"), true)
+  assert.equal(await evaluate("document.querySelector('.save-presence').textContent.includes('あり')"), true)
+  assert.equal(await evaluate("[...document.querySelectorAll('.save-load-panel button')].find((button) => button.textContent === 'ロード').disabled"), false)
   for (const width of [360, 390, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
     assert.equal(await evaluate("(() => { const panel = document.querySelector('.save-load-panel').getBoundingClientRect(); return panel.left >= 0 && panel.right <= innerWidth && panel.top >= 0 && panel.bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth; })()"), true, 'セーブ・ロードUIがはみ出します。')
     await captureScreen('save-load-' + width)
   }
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
-  await clickExactButton('セーブ'); await notification('セーブしました')
+  await clickExactButton('セーブ'); await clickExactButton('上書きする'); await notification('セーブしました')
   const saved = await readDatabase()
-  assert.equal(saved.schemaVersion, 1); assert.equal(saved.player.level, 30); assert.equal(saved.player.job, 'warrior')
+  assert.equal(saved.schemaVersion, 2); assert.equal(saved.player.level, 30); assert.equal(saved.player.job, 'warrior')
   assert.equal(saved.stocks.length, 3); assert.ok(saved.stocks.every((stock) => stock.dungeon && Number.isInteger(stock.dungeon.visualSeed)))
   assert.ok(saved.player.inventory.some((item) => item.favorite))
   assert.ok(saved.player.inventory.some((item) => item.specialEffect))
   assert.ok(saved.player.inventory.some((item) => item.skills.length))
-  assert.deepEqual(Object.keys(saved).sort(), ['player', 'savedAt', 'schemaVersion', 'stocks'])
+  assert.deepEqual(Object.keys(saved).sort(), ['player', 'run', 'savedAt', 'schemaVersion', 'stocks'])
+  assert.equal(saved.run, null)
   await clickExactButton('セーブ'); await clickExactButton('キャンセル')
   assert.deepEqual(await readDatabase(), saved, '上書きキャンセルで保存データが変化しました。')
 
@@ -75,19 +77,21 @@ export async function runSaveBrowserChecks({ evaluate, command, clickButton, cli
 
   // 同一タブの実際の再読み込み。初期状態から保存済み状態を手動ロードする。
   await command('Page.reload', { ignoreCache: true }); await assertScreen('ローグライク')
+  await waitFor("!document.querySelector('.title-start')?.disabled", '起動時の保存確認が完了しません。')
   await clickButton('ゲーム開始'); await assertScreen('町メニュー')
-  assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.1', '自動ロードされました。')
+  assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.30', '町のデータが復元されません。')
   await openPanel()
   assert.equal(await evaluate("document.querySelector('.save-presence').textContent.includes('あり')"), true)
   assert.equal(await evaluate("document.querySelector('.save-timestamp').textContent.includes('未保存')"), false)
   assert.deepEqual(await readDatabase(), saved, '起動時に初期状態で上書きされました。')
   await clickExactButton('ロード'); await clickExactButton('キャンセル')
-  assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.1')
+  assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.30')
   await load(); await load(); await clickButton('閉じる')
   assert.equal(await status(), beforeStatus, '能力値・HP・職業・スキルが復元されません。')
   assert.deepEqual(await inventory(), beforeInventory, '所持品・装備が復元されません。')
   const afterDungeon = await dungeonView()
   assert.deepEqual(afterDungeon, beforeDungeon, '同じダンジョンの地形・初期敵・階段・外観シード・攻略記録が復元されません。')
+  await waitFor("document.querySelector('.save-status')?.dataset.saving === 'false'", '帰還の保存が完了しません。')
 
   await openPanel()
   for (const broken of [{ ...saved, schemaVersion: 99 }, { ...saved, player: { ...saved.player, inventory: [] } }]) {

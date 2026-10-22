@@ -17,7 +17,7 @@ export function ExplorationResultScreen({ dungeonName, items, turn, experience, 
           const src = equipmentAssetPath(item)
           return <li key={item.id} className={`reward-item rarity-${item.rarity}`} data-item-id={item.id}>{src ? <PixelAsset src={src} fallbackIcon={item.category} alt="" /> : <Icon name={item.category} />}<span><strong>{item.name}</strong><small>Lv.{item.level} / {RARITY_LABELS[item.rarity]}</small></span></li>
         })}</ul>}
-        <p>記録・所持品を残すには、町へ戻って手動セーブしてください。探索途中の保存・復帰には未対応です。</p>
+        <p>記録・所持品は自動保存されます。画面の保存状態を確認してください。</p>
       </Panel>
       <button type="button" className="primary-button result-town-button" onClick={onTown}>町へ戻る</button>
     </AppShell>

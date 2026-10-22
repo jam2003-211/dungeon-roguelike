@@ -2,6 +2,7 @@ import { createSaveData, readSaveData, type SaveData } from './saveData'
 import type { SaveRepository } from './saveStorage'
 import type { PlayerState } from '../game/player'
 import type { DungeonStock } from '../game/dungeon'
+import { SaveQueue } from './saveQueue'
 
 export interface SaveMetadata { exists: boolean; savedAt: string | null }
 export function saveMetadata(value: unknown): SaveMetadata {
@@ -11,7 +12,8 @@ export function saveMetadata(value: unknown): SaveMetadata {
 
 export class SaveOperations {
   busy = false
-  constructor(private repository: SaveRepository, private isTown: () => boolean) {}
+  readonly queue: SaveQueue
+  constructor(private repository: SaveRepository, private isTown: () => boolean) { this.queue = new SaveQueue(repository) }
 
   private async run<T>(action: () => Promise<T>): Promise<T> {
     if (!this.isTown()) throw new Error('セーブ・ロードは町でのみ操作できます。')
@@ -21,20 +23,20 @@ export class SaveOperations {
   }
 
   save(player: PlayerState, stocks: DungeonStock[], confirmed: boolean): Promise<SaveData | null> {
-    return this.run(async () => {
+    const snapshot = createSaveData(player, stocks)
+    return this.run(() => this.queue.manual(async () => {
       // 起動時の確認後に作られたレコードも、保存直前に確認する。
       const previous = await this.repository.read()
       if (previous !== undefined && !confirmed) return null
-      const data = createSaveData(player, stocks)
-      await this.repository.write(data)
-      return data
-    })
+      await this.repository.write(snapshot)
+      return snapshot
+    }))
   }
 
   load(confirmed: boolean): Promise<SaveData | null> {
     return this.run(async () => {
       if (!confirmed) return null
-      const value = await this.repository.read()
+      const value = await this.queue.load()
       if (value === undefined) throw new Error('セーブデータがありません。')
       return readSaveData(value)
     })

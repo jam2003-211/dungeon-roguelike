@@ -1,13 +1,15 @@
 import { Icon } from '../components/Icon'
 import { AppShell } from '../components/Ui'
 import { getGameStartScreen } from '../navigation'
+import type { SaveGameControls } from '../persistence/useSaveGame'
 
 interface TitleScreenProps {
+  saveControls: SaveGameControls
   onStart: () => void
   onSettings: () => void
 }
 
-export function TitleScreen({ onStart, onSettings }: TitleScreenProps) {
+export function TitleScreen({ onStart, onSettings, saveControls }: TitleScreenProps) {
   const handleStart = () => {
     if (getGameStartScreen() === 'town') onStart()
   }
@@ -20,7 +22,8 @@ export function TitleScreen({ onStart, onSettings }: TitleScreenProps) {
       <h1 className="game-title">ローグライク<br /><span>RPG</span></h1>
       <p className="title-description">三つのダンジョンを巡る、縦画面専用の冒険</p>
       <div className="title-actions">
-        <button className="primary-button title-start" type="button" onClick={handleStart}><Icon name="play" /> ゲーム開始</button>
+        {saveControls.resumeInfo && <p className="resume-info">{saveControls.resumeInfo}<br />{saveControls.metadata.savedAt && new Date(saveControls.metadata.savedAt).toLocaleString('ja-JP')}</p>}
+        <button className="primary-button title-start" type="button" disabled={saveControls.checking || saveControls.busy} onClick={saveControls.resumeInfo ? saveControls.resume : handleStart}><Icon name="play" /> {saveControls.resumeInfo ? '探索を再開' : 'ゲーム開始'}</button>
         <button className="secondary-button" type="button" onClick={onSettings}><Icon name="settings" /> 設定</button>
       </div>
       <p className="version-label">PROTOTYPE · STAGE 2</p>

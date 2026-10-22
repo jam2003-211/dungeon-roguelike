@@ -67,11 +67,11 @@ test('3ストックの地形・初期敵・ボス・外観シード・攻略記�
 test('未生成のストックを保存でき、探索中の状態をスナップショットに含めない', () => {
   const data = createSaveData(player.createPlayerState(), dungeon.createDungeonStocks())
   assert.equal(data.stocks.filter((stock) => stock.dungeon === null).length, 3)
-  assert.deepEqual(Object.keys(data).sort(), ['player', 'savedAt', 'schemaVersion', 'stocks'])
+  assert.deepEqual(Object.keys(data).sort(), ['player', 'run', 'savedAt', 'schemaVersion', 'stocks'])
   for (const key of ['combat', 'loot', 'cooldowns', 'activeRun', 'turn']) assert.equal(key in data, false)
 })
 test('対応外バージョンを識別して拒否する', () => {
-  for (const schemaVersion of [undefined, 0, 2, '1']) assert.throws(() => readSaveData({ ...valid, schemaVersion }), /バージョン/)
+  for (const schemaVersion of [undefined, 0, 3, '1']) assert.throws(() => readSaveData({ ...valid, schemaVersion }), /バージョン/)
 })
 test('不正なLv・経験値・HP・職業・保存日時を拒否する', () => {
   for (const [key, value] of [['level', 0], ['level', 1.5], ['experience', -1], ['experience', 999999], ['currentHp', -1], ['currentHp', 999999], ['job', 'unknown']]) {
@@ -186,5 +186,5 @@ test('初回セーブは確認なしで保存し、不在データのロード�
   repository.read = async () => undefined
   await assert.rejects(operations.load(true), /ありません/)
   const data = await operations.save(valid.player, valid.stocks, false)
-  assert.deepEqual(data.player, valid.player); assert.equal(data.schemaVersion, 1)
+  assert.deepEqual(data.player, valid.player); assert.equal(data.schemaVersion, 2)
 })

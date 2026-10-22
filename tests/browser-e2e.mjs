@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { runSaveBrowserChecks } from './save-browser.mjs'
+import { runResumeBrowserChecks } from './resume-browser.mjs'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -223,9 +224,14 @@ try {
   await command('Page.navigate', { url: testUrl.href })
   await assertScreen('ローグライク')
   await captureScreen('01-title')
+  await waitFor("!document.querySelector('.title-start')?.disabled", '初期保存確認が完了しません。')
 
   await clickButton('ゲーム開始')
   await assertScreen('町メニュー')
+  await clickButton('セーブ・ロード')
+  assert.equal(await evaluate("document.querySelector('.save-presence').textContent.includes('なし')"), true)
+  assert.equal(await evaluate("[...document.querySelectorAll('.save-load-panel button')].find((button) => button.textContent === 'ロード').disabled"), true)
+  await clickButton('閉じる')
   assert.match(await evaluate("getComputedStyle(document.querySelector('.town-screen')).backgroundImage"), /assets\/backgrounds\/town\.png/, '町背景が指定画像ではありません。')
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.town-menu .action-button__icon img')].map((image) => image.getAttribute('src'))"), [
     '/assets/icons/dungeon.png', '/assets/icons/equipment.png', '/assets/icons/status.png', '/assets/icons/jobs.png',
@@ -527,6 +533,7 @@ try {
     await assertScreen('町メニュー')
   }
   await runSaveBrowserChecks({ evaluate, command, clickButton, clickExactButton, assertScreen, assertExplorationScreen, waitFor, captureScreen })
+  await runResumeBrowserChecks({ evaluate, command, clickButton, clickExactButton, clickMapCell, assertScreen, assertExplorationScreen, waitFor, captureScreen })
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
