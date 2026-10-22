@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -13,6 +13,7 @@ const browserPath = browserCandidates.find(existsSync)
 assert.ok(browserPath, 'ChromeまたはEdgeが見つかりません。')
 
 const appUrl = process.env.APP_URL ?? 'http://127.0.0.1:5173/'
+const screenshotDirectory = process.env.SCREENSHOT_DIR
 const debuggingPort = 10000 + Math.floor(Math.random() * 40000)
 const profileDirectory = mkdtempSync(join(tmpdir(), 'roguelike-browser-test-'))
 const browser = spawn(browserPath, [
@@ -89,6 +90,7 @@ async function assertScreen(title) {
     await waitFor(`document.querySelector('h1')?.textContent.includes(${JSON.stringify(title)})`, `${title}画面へ遷移できません。`)
   } catch (error) {
     const diagnostics = await evaluate(`({ url: location.href, title: document.title, text: document.body?.innerText.slice(0, 300) })`)
+    diagnostics.exceptions = [...exceptions]
     throw new Error(`${error.message} ${JSON.stringify(diagnostics)}`)
   }
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${title}画面が横にはみ出しています。`)
@@ -96,7 +98,7 @@ async function assertScreen(title) {
 
 async function clickButton(label) {
   const clicked = await evaluate(`(() => {
-    const element = [...document.querySelectorAll('button')].find((button) => button.textContent.includes(${JSON.stringify(label)}));
+    const element = [...document.querySelectorAll('button')].find((button) => button.textContent.includes(${JSON.stringify(label)}) || button.getAttribute('aria-label')?.includes(${JSON.stringify(label)}));
     if (!element || element.disabled) return false;
     element.click();
     return true;
@@ -113,6 +115,13 @@ async function assertAllDisabled(selector, expectedCount, message) {
   assert.equal(result.allDisabled, true, `${message}に操作可能なボタンがあります。`)
 }
 
+async function captureScreen(name) {
+  if (!screenshotDirectory) return
+  mkdirSync(screenshotDirectory, { recursive: true })
+  const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+  writeFileSync(join(screenshotDirectory, `${name}.png`), Buffer.from(screenshot.data, 'base64'))
+}
+
 try {
   await command('Runtime.enable')
   await command('Page.enable')
@@ -120,32 +129,37 @@ try {
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   await command('Page.navigate', { url: appUrl })
   await assertScreen('ローグライク')
+  await captureScreen('01-title')
 
   await clickButton('ゲーム開始')
   await assertScreen('町メニュー')
+  await captureScreen('02-town')
 
   for (const [button, heading] of [
     ['ダンジョン', 'ダンジョン'], ['装備・所持品', '装備・所持品'], ['職業変更', '職業変更'],
   ]) {
     await clickButton(button)
     await assertScreen(heading)
+    await captureScreen(`screen-${heading}`)
     if (heading === 'ダンジョン') await assertAllDisabled('.planned-actions button', 6, 'ダンジョン未実装操作')
     if (heading === '職業変更') await assertAllDisabled('.job-card > button', 6, '職業変更操作')
-    await clickButton('‹')
+    await clickButton('前の画面へ戻る')
     await assertScreen('町メニュー')
   }
 
   await clickButton('ステータス')
   await assertScreen('ステータス')
+  await captureScreen('screen-status')
   await clickButton('装備画面へ')
   await assertScreen('装備・所持品')
   await evaluate('history.back()')
   await assertScreen('ステータス')
-  await clickButton('‹')
+  await clickButton('前の画面へ戻る')
   await assertScreen('町メニュー')
 
   await clickButton('設定')
   await assertScreen('設定')
+  await captureScreen('screen-settings')
   assert.equal(await evaluate(`(() => {
     const input = document.querySelector('input[type="range"]');
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -154,16 +168,20 @@ try {
     return true;
   })()`), true)
   await waitFor(`document.querySelector('output')?.textContent === '25%'`, '音量スライダーの表示が更新されません。')
-  await clickButton('‹')
+  await clickButton('前の画面へ戻る')
   await assertScreen('町メニュー')
 
   assert.equal(await evaluate(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('セーブ'))?.disabled`), true, 'セーブが有効になっています。')
+  for (const width of [360, 430]) {
+    await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${width}px幅で横にはみ出しています。`)
+  }
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     writeFileSync(process.env.SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'))
   }
-  console.log('ブラウザE2E: 390×844で主要遷移・戻る・無効操作・スライダー・横幅・エラーを確認しました。')
+  console.log('ブラウザE2E: 360/390/430×844で主要遷移・戻る・無効操作・スライダー・横幅・エラーを確認しました。')
 } finally {
   socket.close()
   browser.kill()

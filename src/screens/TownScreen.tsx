@@ -4,7 +4,7 @@ import type { ScreenId } from '../navigation'
 
 export function TownScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   return (
-    <AppShell>
+    <AppShell className="town-screen">
       <header className="town-header">
         <div><p className="eyebrow">ADVENTURE BASE</p><h1>町メニュー</h1><p>冒険の準備を整えましょう</p></div>
         <div className="level-chip"><small>PLAYER</small><strong>Lv.1</strong></div>
