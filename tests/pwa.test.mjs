@@ -14,7 +14,7 @@ const { canApplyUpdate } = await load('../src/pwa/updateSafety.ts')
 
 test('Manifestは暫定名称・日本語・縦画面・standaloneと指定色を持つ', () => {
   const manifest = pwaOptions('/').manifest
-  for (const [key, value] of Object.entries({ name: 'ダンジョン', short_name: 'ダンジョン', lang: 'ja', display: 'standalone', orientation: 'portrait', theme_color: '#0a1832', background_color: '#0a1832' })) assert.equal(manifest[key], value)
+  for (const [key, value] of Object.entries({ name: 'ダンジョンローグライク', short_name: 'ダンジョンローグライク', lang: 'ja', display: 'standalone', orientation: 'portrait', theme_color: '#0a1832', background_color: '#0a1832' })) assert.equal(manifest[key], value)
 })
 test('192/512/maskableのPNGを正しい用途で登録しApple/faviconも配置する', () => {
   assert.deepEqual(pwaOptions('/').manifest.icons.map(({ sizes, purpose }) => [sizes, purpose]), [['192x192', 'any'], ['512x512', 'any'], ['512x512', 'maskable']])

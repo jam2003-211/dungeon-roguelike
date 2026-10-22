@@ -134,7 +134,7 @@ function App() {
 
   const renderScreen = () => {
   switch (navigation.current) {
-    case 'title': return <TitleScreen saveControls={saveControls} onStart={() => openScreen('town')} onSettings={() => openScreen('settings')} />
+    case 'title': return <TitleScreen saveControls={saveControls} onStart={() => openScreen('town')} />
     case 'town': return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
     case 'dungeon': return <DungeonScreen playerLevel={player.level} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
     case 'exploration':

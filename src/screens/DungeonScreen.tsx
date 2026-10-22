@@ -25,8 +25,7 @@ export function DungeonScreen({ playerLevel, stocks, onBack, onGenerate, onStart
     const message = onGenerate(stockId, level); setError(message); if (!message) setConfirmStock(null)
   }
   return <AppShell>
-    <ScreenHeader title="ダンジョン" subtitle="ダンジョンストック" onBack={onBack} />
-    <p className="screen-intro">解放済みストックに任意Lvのダンジョンを生成します。データはアプリ終了時に保存されません。</p>
+    <ScreenHeader title="ダンジョン" onBack={onBack} />
     {error && <p className="error-text" role="alert">{error}</p>}
     <div className="stock-list">{stocks.map((stock) => {
       const presentation = stockPresentation.find((item) => item.id === stock.id)!

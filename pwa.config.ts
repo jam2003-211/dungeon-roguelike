@@ -1,7 +1,7 @@
 import type { VitePWAOptions } from 'vite-plugin-pwa'
 
 // 暫定名称・色・アイコンはここでまとめて管理する。
-export const appIdentity = { name: 'ダンジョン', color: '#0a1832' } as const
+export const appIdentity = { name: 'ダンジョンローグライク', color: '#0a1832' } as const
 
 export function normalizeBase(value = '/'): string {
   const path = value.replace(/^\/+|\/+$/g, '')

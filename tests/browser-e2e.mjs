@@ -223,6 +223,8 @@ try {
   const testUrl = new URL(appUrl); testUrl.searchParams.set('lootTest', '1')
   await command('Page.navigate', { url: testUrl.href })
   await assertScreen('ローグライク')
+  assert.equal(await evaluate("document.querySelector('h1.game-title').innerText.replace(/\\s/g, '')"), 'ダンジョンローグライク', '正式名称がタイトル画面に表示されていません。')
+  assert.equal(await evaluate("document.querySelectorAll('.title-actions button').length"), 1, 'タイトル画面に開始・再開以外のボタンがあります。')
   await captureScreen('01-title')
   await waitFor("!document.querySelector('.title-start')?.disabled", '初期保存確認が完了しません。')
 
@@ -355,7 +357,7 @@ try {
       continue
     }
     if (heading === '装備・所持品') {
-      assert.match(await evaluate("document.querySelector('.screen-intro').innerText"), /開発テスト用装備/, 'テスト装備が正式報酬と区別されていません。')
+      assert.equal(await evaluate("document.querySelector('.screen-intro') === null"), true, '不要な開発用案内文が表示されています。')
       assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/weapons/bow.png', '/assets/weapons/spear.png', '/assets/weapons/staff.png', '/assets/weapons/sword.png', '/assets/weapons/wand.png'], '武器5種類の画像対応が不正です。')
       const effectItems = [['試験用の槍', 'knockback'], ['試験用の弓', 'critical'], ['試験用の短杖', 'lifesteal'], ['試験用の長杖', 'extra_attack'], ['毒の試験剣', 'poison'], ['燃焼の試験剣', 'burn'], ['鈍足の試験剣', 'slow'], ['気絶の試験剣', 'stun']]
       for (const [name, effect] of effectItems) {
