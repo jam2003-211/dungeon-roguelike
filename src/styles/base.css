@@ -173,6 +173,8 @@ h1, h2, p { margin-top: 0; }
 .enemy-sheet img { width: 48px; height: 48px; image-rendering: pixelated; }
 .enemy-sheet > div { display: grid; gap: 3px; }
 .enemy-sheet strong { font-size: .78rem; }.enemy-sheet span { color: var(--muted); font-size: .62rem; }
+.enemy-status-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }.enemy-status-icons { display: inline-flex; align-items: center; gap: 3px; }
+.special-effect-icon { display: inline-block; width: 24px; height: 24px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; flex: 0 0 auto; }.enemy-sheet .special-effect-icon { width: 24px; height: 24px; }
 .enemy-sheet__close { align-self: start; grid-column: 3; grid-row: 1; width: 30px; height: 30px; color: #fff; background: #211f23; border: 1px solid #fff; cursor: pointer; }
 
 /* テスト探索結果 */

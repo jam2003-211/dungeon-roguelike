@@ -321,6 +321,21 @@ try {
     if (heading === '装備・所持品') {
       assert.match(await evaluate("document.querySelector('.screen-intro').innerText"), /開発テスト用装備/, 'テスト装備が正式報酬と区別されていません。')
       assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/weapons/bow.png', '/assets/weapons/spear.png', '/assets/weapons/staff.png', '/assets/weapons/sword.png', '/assets/weapons/wand.png'], '武器5種類の画像対応が不正です。')
+      const effectItems = [['試験用の槍', 'knockback'], ['試験用の弓', 'critical'], ['試験用の短杖', 'lifesteal'], ['試験用の長杖', 'extra_attack'], ['毒の試験剣', 'poison'], ['燃焼の試験剣', 'burn'], ['鈍足の試験剣', 'slow'], ['気絶の試験剣', 'stun']]
+      for (const [name, effect] of effectItems) {
+        await clickButton(name)
+        await waitFor("document.querySelector('.item-detail .special-effect-icon')?.naturalWidth === 128", `${name}の特殊効果画像を読み込めません。`)
+        const icon = await evaluate("({ src: document.querySelector('.item-detail .special-effect-icon')?.getAttribute('src'), width: document.querySelector('.item-detail .special-effect-icon')?.naturalWidth })")
+        assert.deepEqual(icon, { src: `/assets/special-effects/${effect}.png`, width: 128 }, `${name}の特殊効果画像が正しくありません。`)
+        assert.equal(await evaluate("(() => { const image = document.querySelector('.item-detail .special-effect-icon'); const rect = image.getBoundingClientRect(); return rect.width === 24 && rect.height === 24 && getComputedStyle(image).objectFit === 'contain' })()"), true, `${name}のアイコンが枠内に正しく収まりません。`)
+        assert.equal(await evaluate("document.querySelector('.item-detail').innerText.includes(" + JSON.stringify(effect === 'extra_attack' ? 'extraAttack' : effect) + ")"), true, `${name}の効果名が表示されていません。`)
+        if (effect === 'knockback') {
+          await evaluate("document.querySelector('.item-detail .special-effect-icon').src = '/missing-special-effect.png'")
+          await waitFor("document.querySelector('.item-detail .special-effect-icon') === null", '欠落画像時の表示が復旧しません。')
+          assert.equal(await evaluate("document.querySelector('.item-detail').innerText.includes('knockback')"), true, '画像欠落時に特殊効果名が失われました。')
+        }
+        await clickButton('閉じる')
+      }
       await clickExactButton('防具')
       assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/armors/heavy_armor.png', '/assets/armors/heavy_clothes.png', '/assets/armors/light_armor.png', '/assets/armors/light_clothes.png'], '防具4種類の画像対応が不正です。')
       await setInputValue('.inventory-search', '試験用軽鎧')
