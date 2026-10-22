@@ -1,3 +1,4 @@
+import { withEquipmentFixture } from './equipment-fixture.mjs'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -18,11 +19,22 @@ async function load(path) {
 const moduleAt = async (path) => import(await load(new URL(path, import.meta.url)))
 const loot = await moduleAt('../src/game/loot.ts')
 const battle = await moduleAt('../src/game/battle.ts')
-const player = await moduleAt('../src/game/player.ts')
+const productionPlayer = await moduleAt('../src/game/player.ts')
+const player = withEquipmentFixture(productionPlayer)
 const combat = await moduleAt('../src/game/combat/combat.ts')
 const runs = await moduleAt('../src/game/dungeonRun.ts')
 
 const map = Array.from({ length: 20 }, () => Array(20).fill('grass'))
+
+test('試験装備のない新規プレイヤーも正規生成装備を入手・装着できる', () => {
+  const item = loot.generateEquipment({ level: 1, featuredCategory: 'weapon' }, () => 0)
+  const initial = productionPlayer.createPlayerState()
+  const equipped = player.equipItem({ ...initial, inventory: [...initial.inventory, item] }, item.id)
+  assert.equal(item.testOnly, false)
+  assert.equal(equipped.inventory.length, 3)
+  assert.equal(equipped.equipment.weapon, item.id)
+  assert.deepEqual(equipped.inventory.find((owned) => owned.id === item.id), item)
+})
 function dungeon(totalFloors = 6) {
   return { version: 1, level: 10, featuredCategory: 'weapon', totalFloors, enemyKinds: ['goblin', 'boar', 'ghost'], bossKind: 'goblin', floors: Array.from({ length: totalFloors }, (_, i) => ({ floor: i + 1, map, start: { x: 2, y: 17 }, stairs: { x: 17, y: 2 }, chestCandidate: i === totalFloors - 1 ? null : { x: 10, y: 10 }, enemies: [{ id: `f${i + 1}-enemy`, kind: 'goblin', level: 1, position: { x: 8, y: 8 }, isBoss: i === totalFloors - 1 }] })) }
 }

@@ -1,3 +1,4 @@
+import { withEquipmentFixture } from './equipment-fixture.mjs'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -12,7 +13,7 @@ const skillsUrl = url(skillsOutput)
 const combatOutput = (await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`)
 const combatUrl = url(combatOutput)
 const battleOutput = (await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`)
-const battle = await import(url(battleOutput)); const player = await import(playerUrl); const combat = await import(combatUrl); const skills = await import(skillsUrl)
+const battle = await import(url(battleOutput)); const player = withEquipmentFixture(await import(playerUrl)); const combat = await import(combatUrl); const skills = await import(skillsUrl)
 
 function openMap(obstacles = []) { const map = Array.from({ length: 20 }, (_, y) => Array.from({ length: 20 }, (_, x) => x === 0 || y === 0 || x === 19 || y === 19 ? 'wall' : 'grass')); for (const p of obstacles) map[p.y][p.x] = 'wall'; return map }
 function enemy(id, x, y, level = 5, boss = false) { return combat.createEnemy(id, 'goblin', level, { x, y }, boss) }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { runSaveBrowserChecks } from './save-browser.mjs'
+import { runSaveBrowserChecks, databaseAccess } from './save-browser.mjs'
+import { createFixturePlayer } from './equipment-fixture.mjs'
 import { runResumeBrowserChecks } from './resume-browser.mjs'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -242,6 +243,28 @@ try {
   assert.equal(await evaluate("[...document.querySelectorAll('.town-menu .action-button__chevron img')].every((image) => image.getAttribute('src') === '/assets/arrows/arrow-right-16.png' && image.complete && image.naturalWidth === 16)"), true, '町メニューの右矢印が正しく表示されていません。')
   assert.equal(await evaluate("document.querySelector('.player-summary .avatar img')?.getAttribute('src')"), '/assets/jobs/none.png', '町メニューに無職画像が表示されていません。')
   await captureScreen('02-town')
+
+  // 新規ゲームの配布内容を実UIで確認後、回帰テスト用装備だけをIndexedDB経由で用意する。
+  await clickButton('装備・所持品')
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.inventory-item strong')].map((node)=>node.textContent)"), ['初心者用の剣'])
+  await clickExactButton('防具')
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.inventory-item strong')].map((node)=>node.textContent)"), ['初期軽鎧'])
+  await clickExactButton('アクセサリー')
+  assert.equal(await evaluate("document.querySelectorAll('.inventory-item').length"), 0)
+  const fixtureStocks = await evaluate("import('/src/game/dungeon.ts').then((module)=>module.createDungeonStocks())")
+  const fixtureSave = { schemaVersion: 2, savedAt: new Date().toISOString(), player: createFixturePlayer(), stocks: fixtureStocks, run: null }
+  const legacySave = structuredClone(fixtureSave)
+  legacySave.player.inventory.forEach((item) => { if (item.id.startsWith('test-')) item.testOnly = true })
+  await evaluate(`(${databaseAccess})('readwrite', ${JSON.stringify(legacySave)})`)
+  await command('Page.reload')
+  await waitFor("document.querySelector('.title-start') && !document.querySelector('.title-start').disabled", '旧セーブを読み込めません。')
+  await clickButton('ゲーム開始'); await clickButton('装備・所持品')
+  assert.equal(await evaluate("document.querySelector('.item-count').textContent"), '2 items', '旧試験装備が除去されていません。')
+  assert.deepEqual(await evaluate(`(${databaseAccess})()`), legacySave, 'ロードだけで旧保存データを書き換えました。')
+  await evaluate(`(${databaseAccess})('readwrite', ${JSON.stringify(fixtureSave)})`)
+  await command('Page.reload')
+  await waitFor("document.querySelector('.title-start') && !document.querySelector('.title-start').disabled", 'テスト用セーブを読み込めません。')
+  await clickButton('ゲーム開始'); await assertScreen('町メニュー')
 
   for (const [button, heading] of [
     ['ダンジョン', 'ダンジョン'], ['装備・所持品', '装備・所持品'], ['職業変更', '職業変更'],

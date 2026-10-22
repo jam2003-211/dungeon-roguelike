@@ -1,3 +1,4 @@
+import { withEquipmentFixture } from './equipment-fixture.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -14,7 +15,7 @@ function moduleUrl(path) {
   cache.set(path, url); return url
 }
 const load = (path) => import(moduleUrl(fileURLToPath(new URL('../src/' + path + '.ts', import.meta.url))))
-const player = await load('game/player'); const dungeon = await load('game/dungeon')
+const player = withEquipmentFixture(await load('game/player')); const dungeon = await load('game/dungeon')
 const { createSaveData, readSaveData } = await load('persistence/saveData')
 const { SaveOperations } = await load('persistence/saveOperations')
 const { createSaveRepository } = await load('persistence/saveStorage')
@@ -32,6 +33,26 @@ function fixture() {
 }
 const valid = fixture()
 const clone = () => structuredClone(valid)
+
+test('旧試験装備は固定IDと専用フラグの両方で除去し、正規装備・育成・記録を維持する', () => {
+  const old = clone()
+  old.player.inventory.forEach((item) => { if (item.id.startsWith('test-')) item.testOnly = true })
+  old.player.currentHp = player.calculateStats(old.player).maxHp
+  const original = structuredClone(old)
+  const restored = readSaveData(old)
+  assert.deepEqual(restored.player.inventory.map((item) => item.id), ['initial-sword', 'initial-armor'])
+  assert.deepEqual(restored.player.equipment, { weapon: null, armor: null, accessory1: null, accessory2: null })
+  assert.equal(restored.player.currentHp, player.calculateStats(restored.player).maxHp)
+  assert.equal(restored.player.level, old.player.level); assert.equal(restored.player.experience, old.player.experience); assert.equal(restored.player.job, old.player.job)
+  assert.deepEqual(restored.stocks, old.stocks); assert.deepEqual(old, original)
+  assert.equal(restored.schemaVersion, 2); assert.deepEqual(readSaveData(restored), restored)
+  assert.deepEqual(readSaveData({ ...old, schemaVersion: 1 }).player, restored.player)
+})
+test('名前・ID・専用フラグだけでは装備を削除せず、既存HPと正規装備の性能を維持する', () => {
+  const data = clone()
+  data.player.inventory.push({ ...data.player.inventory[0], id: 'generated-test-name', name: '試験用の槍', testOnly: true })
+  assert.deepEqual(readSaveData(data), data)
+})
 function memoryRepository(initial = valid) {
   let value = structuredClone(initial)
   return { read: async () => structuredClone(value), write: async (next) => { value = structuredClone(next) } }

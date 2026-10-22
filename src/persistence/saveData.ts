@@ -4,6 +4,7 @@ import { ENEMY_DEFINITIONS } from '../game/combat/combat'
 import { createDungeonStocks, MAX_DUNGEON_LEVEL, validateDungeon, type DungeonStock, type GeneratedDungeon } from '../game/dungeon'
 import type { SavedRun } from './savedRun'
 import { validSavedRun } from './savedRun'
+import { removeLegacyTestEquipment } from './legacyTestEquipment'
 
 export interface SaveData { schemaVersion: 2; savedAt: string; player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -94,7 +95,14 @@ export function readSaveData(value: unknown): SaveData {
     const run = value.schemaVersion === 1 ? null : value.run
     if (run !== null && !validSavedRun(run, value.player, value.stocks, validItem)) throw new Error()
     // 適用先との参照共有を防ぎ、何度ロードしても同じ状態へ置き換える。
-    return JSON.parse(JSON.stringify({ schemaVersion: 2, savedAt: value.savedAt, player: value.player, stocks: value.stocks, run })) as SaveData
+    const data = JSON.parse(JSON.stringify({ schemaVersion: 2, savedAt: value.savedAt, player: value.player, stocks: value.stocks, run })) as SaveData
+    const previousPlayer = data.player
+    data.player = removeLegacyTestEquipment(data.player, new Set(data.run?.battle.loot.items.map((item) => item.id) ?? []))
+    if (data.run && data.player !== previousPlayer) {
+      data.run.battle.combat.playerHp = data.player.currentHp
+      data.run.battle.combat.playerMaxHp = calculateStats(data.player).maxHp
+    }
+    return data
   } catch { throw new Error('セーブデータが破損しています。現在のデータは変更していません。') }
 }
 

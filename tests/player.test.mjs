@@ -1,3 +1,4 @@
+import { withEquipmentFixture } from './equipment-fixture.mjs'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -5,7 +6,16 @@ import ts from 'typescript'
 
 const source = await readFile(new URL('../src/game/player.ts', import.meta.url), 'utf8')
 const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
-const player = await import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`)
+const productionPlayer = await import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`)
+const player = withEquipmentFixture(productionPlayer)
+
+test('新規ゲームは正規の初期剣・軽鎧だけを配布し試験装備を含まない', () => {
+  const state = productionPlayer.createPlayerState()
+  assert.deepEqual(state.inventory.map((item) => item.id), ['initial-sword', 'initial-armor'])
+  assert.equal(state.inventory.some((item) => item.testOnly), false)
+  assert.deepEqual(productionPlayer.calculateStats(state), { maxHp: 100, physical: 15, magic: 12 })
+  assert.deepEqual(state.equipment, { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null })
+})
 
 test('レベル能力値と必要経験値が指定式に従う', () => {
   assert.deepEqual(player.baseStats(1), { maxHp: 100, physical: 12, magic: 12 })

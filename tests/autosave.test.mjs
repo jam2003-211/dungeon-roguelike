@@ -1,3 +1,4 @@
+import { withEquipmentFixture } from './equipment-fixture.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -14,7 +15,7 @@ function moduleUrl(path) {
   cache.set(path, url); return url
 }
 const load = (path) => import(moduleUrl(fileURLToPath(new URL('../src/' + path + '.ts', import.meta.url))))
-const player = await load('game/player'); const dungeon = await load('game/dungeon'); const battle = await load('game/battle'); const loot = await load('game/loot')
+const player = withEquipmentFixture(await load('game/player')); const dungeon = await load('game/dungeon'); const battle = await load('game/battle'); const loot = await load('game/loot')
 const combat = await load('game/combat/combat'); const runLogic = await load('game/dungeonRun'); const map = await load('game/forestMap')
 const { createSaveData, readSaveData } = await load('persistence/saveData')
 const { captureRun, restoreBattle } = await load('persistence/savedRun')
@@ -39,6 +40,27 @@ function fixture(final = false) {
 }
 const snapshot = (fixture) => createSaveData(fixture.state.player, fixture.stocks, new Date('2026-10-23T12:00:00Z'), captureRun(1, fixture.floor, fixture.state))
 const restored = (fixture) => { const data = readSaveData(snapshot(fixture)); return restoreBattle(data.player, data.run) }
+
+test('旧試験装備を外しても探索座標・ターン・敵・宝箱・報酬・CDを変更しない', () => {
+  const data = snapshot(fixture())
+  data.player.inventory.forEach((item) => { if (item.id.startsWith('test-')) item.testOnly = true })
+  const original = structuredClone(data)
+  const cleaned = readSaveData(data)
+  original.run.battle.combat.playerHp = cleaned.player.currentHp
+  original.run.battle.combat.playerMaxHp = player.calculateStats(cleaned.player).maxHp
+  assert.deepEqual(cleaned.run, original.run)
+  assert.deepEqual(cleaned.stocks, original.stocks)
+  assert.equal(cleaned.player.inventory.length, 2)
+  assert.deepEqual(readSaveData(cleaned), cleaned)
+  assert.notEqual(data.run.battle.combat.playerMaxHp, cleaned.run.battle.combat.playerMaxHp)
+})
+test('報酬記録と結びついた非標準の試験装備は開封・獲得の整合性を優先して保持する', () => {
+  const data = snapshot(fixture())
+  const item = data.player.inventory.find((item) => item.id === 'test-light-armor')
+  item.testOnly = true
+  data.run.battle.loot.items.push(structuredClone(item))
+  assert.deepEqual(readSaveData(data), data)
+})
 
 for (const [name, select] of [
   ['現在階', (data) => data.run.floor], ['プレイヤー座標', (data) => data.run.battle.combat.position],

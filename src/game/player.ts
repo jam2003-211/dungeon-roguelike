@@ -56,32 +56,12 @@ export function calculateStats(player: PlayerState): PlayerStats {
   return equippedItems(player).reduce((stats, item) => { const bonus = itemBonuses(item); return { maxHp: stats.maxHp + bonus.maxHp, physical: stats.physical + bonus.physical, magic: stats.magic + bonus.magic } }, { maxHp: Math.floor(base.maxHp * job.hp), physical: Math.floor(base.physical * job.physical), magic: Math.floor(base.magic * job.magic) })
 }
 
-function item(id: string, name: string, category: EquipmentCategory, subtype: EquipmentItem['subtype'], level: number, rarity: Rarity, baseHp: number, basePhysical: number, baseMagic: number, skills: SkillId[] = [], specialEffect: SpecialEffectId | null = null, testOnly = true): EquipmentItem {
-  return { id, name, category, subtype, level, rarity, baseHp, basePhysical, baseMagic, skills, specialEffect, favorite: false, testOnly }
+export function createPlayerState(): PlayerState {
+  return { level: 1, experience: 0, currentHp: 100, job: 'unemployed', inventory: [
+    { id: 'initial-sword', name: '初心者用の剣', category: 'weapon', subtype: 'sword', level: 1, rarity: 'common', baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
+    { id: 'initial-armor', name: '初期軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, rarity: 'common', baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
+  ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
 }
-
-export function createTestInventory(): EquipmentItem[] {
-  return [
-    item('initial-sword', '初心者用の剣', 'weapon', 'sword', 1, 'common', 0, 3, 0, [], null, false),
-    item('initial-armor', '初期軽鎧', 'armor', 'lightArmor', 1, 'common', 0, 0, 0, [], null, false),
-    item('test-spear', '試験用の槍', 'weapon', 'spear', 5, 'rare', 0, 7, 0, [], 'knockback'),
-    item('test-bow', '試験用の弓', 'weapon', 'bow', 8, 'epic', 0, 9, 0, [], 'critical'),
-    item('test-short-staff', '試験用の短杖', 'weapon', 'shortStaff', 5, 'rare', 0, 0, 8, [], 'lifesteal'),
-    item('test-long-staff', '試験用の長杖', 'weapon', 'longStaff', 10, 'legendary', 0, 0, 10, [], 'extraAttack'),
-    item('test-poison-sword', '毒の試験剣', 'weapon', 'sword', 3, 'legendary', 0, 5, 0, [], 'poison'),
-    item('test-burn-sword', '燃焼の試験剣', 'weapon', 'sword', 3, 'legendary', 0, 5, 0, [], 'burn'),
-    item('test-slow-sword', '鈍足の試験剣', 'weapon', 'sword', 3, 'legendary', 0, 5, 0, [], 'slow'),
-    item('test-stun-sword', '気絶の試験剣', 'weapon', 'sword', 3, 'legendary', 0, 5, 0, [], 'stun'),
-    item('test-heavy-armor', '試験用重鎧', 'armor', 'heavyArmor', 5, 'rare', 30, 0, 0, ['guard']),
-    item('test-light-armor', '試験用軽鎧', 'armor', 'lightArmor', 5, 'epic', 20, 0, 0, ['strongStrike', 'piercingShot', 'dash']),
-    item('test-heavy-robe', '試験用重装束', 'armor', 'heavyRobe', 5, 'rare', 20, 0, 3, ['largeHeal']),
-    item('test-light-robe', '試験用軽装束', 'armor', 'lightRobe', 5, 'epic', 15, 0, 5, ['magicBolt', 'flame', 'slowSpell']),
-    item('test-accessory-a', '試験護符・戦技', 'accessory', 'commonAccessory', 4, 'rare', 5, 2, 0, ['shockwave', 'poisonStrike']),
-    item('test-accessory-b', '試験護符・治癒', 'accessory', 'commonAccessory', 4, 'epic', 8, 0, 2, ['smallHeal', 'stunStrike']),
-  ]
-}
-
-export function createPlayerState(): PlayerState { return { level: 1, experience: 0, currentHp: 100, job: 'unemployed', inventory: createTestInventory(), equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } } }
 export function canEquip(jobId: JobId, item: EquipmentItem): boolean { if (item.category === 'accessory') return true; const job = JOBS[jobId]; return item.category === 'weapon' ? (job.weapons as readonly string[]).includes(item.subtype) : (job.armors as readonly string[]).includes(item.subtype) }
 export function isEquipped(player: PlayerState, id: string): boolean { return Object.values(player.equipment).includes(id) }
 

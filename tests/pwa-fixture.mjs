@@ -1,3 +1,4 @@
+import { withEquipmentFixture } from './equipment-fixture.mjs'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,7 +13,7 @@ function moduleUrl(path) {
 }
 const load = (path) => import(moduleUrl(fileURLToPath(new URL('../src/' + path + '.ts', import.meta.url))))
 export async function pwaFixture() {
-  const player = await load('game/player'); const dungeon = await load('game/dungeon'); const run = await load('game/dungeonRun')
+  const player = withEquipmentFixture(await load('game/player')); const dungeon = await load('game/dungeon'); const run = await load('game/dungeonRun')
   const loot = await load('game/loot'); const saved = await load('persistence/saveData'); const { captureRun } = await load('persistence/savedRun')
   let character = { ...player.createPlayerState(), level: 30 }
   for (const id of ['test-light-armor', 'test-accessory-a', 'test-accessory-b']) character = player.equipItem(character, id)
