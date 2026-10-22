@@ -102,6 +102,11 @@ export const dungeonTileAssetPaths = {
   castle_stairs_alt: assetUrl('assets/dungeon-tiles/castle_stairs_alt.png'),
 } as const
 
+export const chestAssetPaths = {
+  closed: assetUrl('assets/chests/128px/chest_closed.png'),
+  open: assetUrl('assets/chests/128px/chest_open.png'),
+} as const
+
 export function equipmentAssetPath(item: EquipmentItem): string | null {
   if (item.category === 'weapon') return weaponAssetPaths[item.subtype as WeaponType]
   if (item.category === 'armor') return armorAssetPaths[item.subtype as ArmorType]

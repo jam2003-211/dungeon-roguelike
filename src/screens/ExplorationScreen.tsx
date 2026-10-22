@@ -22,7 +22,7 @@ function EnemyInfo({ enemy, onClose }: { enemy: EnemyState; onClose: () => void 
 export function ExplorationScreen({ onOpenChest, onClearLootNotice, onTestApproachChest, battle, map, stairs, themeName, dungeonLevel, floor, totalFloors, totalFloorsKnown, menuOpen, onMove, onAttack, onSkill, onNextFloor, onMenuOpenChange, onOpenStatus, onOpenEquipment, onReturn, onClearNotice, onTestReachStairs, onTestApproachEnemy, onTestDefeatBoss }: Props) {
   const [showDungeonInfo, setShowDungeonInfo] = useState(false); const [showReturnConfirmation, setShowReturnConfirmation] = useState(false); const [selection, setSelection] = useState<Selection>(null); const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null); const [skillInfo, setSkillInfo] = useState<SkillId | null>(null); const holdTimer = useRef<number | null>(null)
   const { combat, player } = battle; const stats = calculateStats(player); const selectedEnemy = combat.enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null; const skills = availableSkills(player)
-  const chest = battle.loot?.chests.find((candidate) => candidate.floor === floor && !candidate.opened) ?? null
+  const chest = battle.loot?.chests.find((candidate) => candidate.floor === floor) ?? null
   const lootNotice = battle.loot?.notices[0]
   useEffect(() => { if (!lootNotice) return; const timer = window.setTimeout(onClearLootNotice, 2000); return () => window.clearTimeout(timer) }, [lootNotice, onClearLootNotice])
   const onStairs = combat.position.x === stairs.x && combat.position.y === stairs.y

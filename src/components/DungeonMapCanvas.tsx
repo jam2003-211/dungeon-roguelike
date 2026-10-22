@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { dungeonTileAssetPaths, enemyAssetPaths, enemyFallbackPaths, jobAssetPaths, loadCachedImage } from '../assets'
+import { chestAssetPaths, dungeonTileAssetPaths, enemyAssetPaths, enemyFallbackPaths, jobAssetPaths, loadCachedImage } from '../assets'
 import { ENEMY_DEFINITIONS, getWarningLevel, positionKey, type EnemyState } from '../game/combat/combat'
 import { MAP_SIZE, type ForestMap, type Position, type TileType } from '../game/forestMap'
 import type { LootChest } from '../game/loot'
@@ -73,9 +73,13 @@ function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Posi
   else { context.fillStyle = '#17191d'; context.fillRect(stairLeft + 3, stairTop + 3, 14, 14); context.fillStyle = '#f0d372'; context.fillRect(stairLeft + 5, stairTop + 5, 10, 3); context.fillRect(stairLeft + 7, stairTop + 9, 8, 3); context.fillRect(stairLeft + 9, stairTop + 13, 6, 3) }
   if (chest) {
     const x = chest.position.x * TILE_SIZE; const y = chest.position.y * TILE_SIZE
-    context.fillStyle = '#2c180b'; context.fillRect(x + 2, y + 5, 16, 13)
-    context.fillStyle = '#b8752d'; context.fillRect(x + 3, y + 6, 14, 10)
-    context.fillStyle = '#f4d46b'; context.fillRect(x + 3, y + 10, 14, 2); context.fillRect(x + 9, y + 9, 3, 5)
+    const image = images.get(chest.opened ? 'chest_open' : 'chest_closed')
+    if (image?.complete && image.naturalWidth > 0) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE)
+    else {
+      context.fillStyle = '#2c180b'; context.fillRect(x + 2, y + 5, 16, 13)
+      context.fillStyle = '#b8752d'; context.fillRect(x + 3, y + 6, 14, 10)
+      context.fillStyle = '#f4d46b'; context.fillRect(x + 3, y + 10, 14, 2); context.fillRect(x + 9, y + 9, 3, 5)
+    }
   }
   for (const enemy of enemies) drawEnemy(context, enemy, images.get(enemy.kind), selectedEnemyId === enemy.id)
   const left = player.x * TILE_SIZE; const top = player.y * TILE_SIZE
@@ -97,9 +101,19 @@ export function DungeonMapCanvas({ chest, map, stairs, themeName, floor, player,
       drawMap(context, map, stairs, theme, floor, player, enemies, targetCells, selectedEnemyId, images, playerImage, chest)
       canvas.dataset.loadedTileCount = String(Object.keys(dungeonTileAssetPaths).filter((key) => { const image = images.get(key); return image?.complete && image.naturalWidth > 0 }).length)
       canvas.dataset.stairsTile = getDungeonStairsVisual(theme, floor, map[stairs.y][stairs.x] === 'path')
+      if (chest) {
+        const chestKey = chest.opened ? 'open' : 'closed'
+        const image = images.get(`chest_${chestKey}`)
+        canvas.dataset.chestOpened = String(chest.opened)
+        canvas.dataset.chestAsset = chestAssetPaths[chestKey]
+        canvas.dataset.chestImageLoaded = String(Boolean(image?.complete && image.naturalWidth > 0))
+      } else {
+        delete canvas.dataset.chestOpened; delete canvas.dataset.chestAsset; delete canvas.dataset.chestImageLoaded
+      }
     }
     playerImage.addEventListener('load', redraw)
     for (const [key, path] of Object.entries(dungeonTileAssetPaths)) { const image = loadCachedImage(path); image.addEventListener('load', redraw); images.set(key, image) }
+    for (const [key, path] of Object.entries(chestAssetPaths)) { const image = loadCachedImage(path); image.addEventListener('load', redraw); images.set(`chest_${key}`, image) }
     for (const definition of Object.values(ENEMY_DEFINITIONS)) { const image = loadCachedImage(enemyAssetPaths[definition.kind], enemyFallbackPaths[definition.kind]); image.addEventListener('load', redraw); images.set(definition.kind, image) }
     redraw(); return () => { playerImage.removeEventListener('load', redraw); for (const image of images.values()) image.removeEventListener('load', redraw) }
   }, [chest, enemies, floor, map, player, playerJob, selectedEnemyId, stairs, targetCells, theme])
