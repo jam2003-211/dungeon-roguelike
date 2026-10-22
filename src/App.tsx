@@ -1,3 +1,5 @@
+import { useSaveGame } from './persistence/useSaveGame'
+import type { SaveData } from './persistence/saveData'
 import { useCallback, useEffect, useState } from 'react'
 import { attackWithWeapon, createBattleState, moveBattlePlayer, useSkill, type BattleState } from './game/battle'
 import { createDungeon, createDungeonStocks, replaceDungeonStock, updateStockProgress, type DungeonStockId } from './game/dungeon'
@@ -37,6 +39,13 @@ function App() {
   const [exploration, setExploration] = useState<BattleState>(() => createBattleState(createPlayerState()))
   const [explorationMenuOpen, setExplorationMenuOpen] = useState(false)
   const [result, setResult] = useState({ turn: 0, experience: 0, floor: 1, startLevel: 1, endLevel: 1, kind: '任意帰還' as ResultKind, dungeonName: '', items: [] as EquipmentItem[] })
+  const restoreSave = useCallback((data: SaveData) => {
+    setPlayer(data.player); setStocks(data.stocks)
+    setActiveRun(null); setExploration(createBattleState(data.player)); setExplorationMenuOpen(false)
+    const next: NavigationState = { current: 'town', previous: ['title'] }
+    window.history.replaceState(next, ''); setNavigation(next)
+  }, [])
+  const saveControls = useSaveGame(navigation.current === 'town', player, stocks, restoreSave)
   const activeStock = activeRun ? stocks.find((stock) => stock.id === activeRun.stockId) ?? null : null
   const activeDungeon = activeStock?.dungeon ?? null
   const activeFloor = activeDungeon && activeRun ? activeDungeon.floors[activeRun.floor - 1] : null
@@ -118,10 +127,10 @@ function App() {
 
   switch (navigation.current) {
     case 'title': return <TitleScreen onStart={() => openScreen('town')} onSettings={() => openScreen('settings')} />
-    case 'town': return <TownScreen player={player} onNavigate={openScreen} />
+    case 'town': return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
     case 'dungeon': return <DungeonScreen playerLevel={player.level} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
     case 'exploration':
-      if (!activeRun || !activeStock || !activeDungeon || !activeFloor) return <TownScreen player={player} onNavigate={openScreen} />
+      if (!activeRun || !activeStock || !activeDungeon || !activeFloor) return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
       return <ExplorationScreen visualSeed={activeDungeon.visualSeed ?? 0} onOpenChest={handleOpenChest} onClearLootNotice={() => setExploration((current) => current.loot ? { ...current, loot: { ...current.loot, notices: current.loot.notices.slice(1) } } : current)} onTestApproachChest={() => setExploration((current) => {
         const chest = current.loot?.chests.find((candidate) => candidate.floor === activeRun.floor && !candidate.opened)
         if (!chest) return current

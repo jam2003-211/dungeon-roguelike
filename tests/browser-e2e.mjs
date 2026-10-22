@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { runSaveBrowserChecks } from './save-browser.mjs'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -442,7 +443,7 @@ try {
   await clickButton('前の画面へ戻る')
   await assertScreen('町メニュー')
 
-  assert.equal(await evaluate(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('セーブ'))?.disabled`), true, 'セーブが有効になっています。')
+  assert.equal(await evaluate(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('セーブ・ロード'))?.disabled`), false, 'セーブ・ロードを開けません。')
   await assertImageAssets([
     '/assets/arrows/arrow-right-16.png', '/assets/arrows/arrow-right-32.png',
     '/assets/arrows/arrow-left-16.png', '/assets/arrows/arrow-left-32.png',
@@ -525,6 +526,7 @@ try {
     await clickButton('前の画面へ戻る')
     await assertScreen('町メニュー')
   }
+  await runSaveBrowserChecks({ evaluate, command, clickButton, clickExactButton, assertScreen, assertExplorationScreen, waitFor, captureScreen })
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })

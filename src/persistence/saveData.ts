@@ -1,0 +1,100 @@
+import { calculateStats, canEquip, experienceToNext, JOBS, RARITY_LABELS, SUBTYPE_LABELS, type EquipmentItem, type PlayerState } from '../game/player'
+import { SKILLS } from '../game/skills'
+import { ENEMY_DEFINITIONS } from '../game/combat/combat'
+import { createDungeonStocks, MAX_DUNGEON_LEVEL, validateDungeon, type DungeonStock, type GeneratedDungeon } from '../game/dungeon'
+
+// 探索の一時状態は含めず、町から再探索するための確定データだけを持つ。
+export interface SaveData { schemaVersion: 1; savedAt: string; player: PlayerState; stocks: DungeonStock[] }
+const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const integer = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max
+const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0
+const member = (value: unknown, values: object): value is string => typeof value === 'string' && Object.hasOwn(values, value)
+const position = (value: unknown): boolean => record(value) && integer(value.x, 0, 19) && integer(value.y, 0, 19)
+const effects = ['poison', 'burn', 'slow', 'stun', 'knockback', 'critical', 'lifesteal', 'extraAttack']
+const subtypes = { weapon: ['sword', 'spear', 'bow', 'shortStaff', 'longStaff'], armor: ['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'], accessory: ['commonAccessory'] }
+const tiles = { forest: ['grass', 'path', 'tree', 'rock', 'stump'], ruins: ['ruinsFloor', 'wall', 'pillar'], castle: ['castleFloor', 'castleWall', 'pillar'] }
+
+function isJson(value: unknown, ancestors = new Set<object>()): boolean {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'object' || ancestors.has(value) || (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype)) return false
+  if (Array.isArray(value) && Array.from({ length: value.length }, (_, index) => Object.hasOwn(value, index)).some((present) => !present)) return false
+  ancestors.add(value)
+  const valid = Object.values(value).every((entry) => isJson(entry, ancestors))
+  ancestors.delete(value)
+  return valid
+}
+
+function validItem(value: unknown): value is EquipmentItem {
+  if (!record(value) || !text(value.id) || !text(value.name) || !member(value.category, subtypes) || !member(value.subtype, SUBTYPE_LABELS)) return false
+  return subtypes[value.category as keyof typeof subtypes].includes(value.subtype)
+    && integer(value.level, 1) && member(value.rarity, RARITY_LABELS)
+    && [value.baseHp, value.basePhysical, value.baseMagic].every((number) => integer(number))
+    && Array.isArray(value.skills) && value.skills.every((id) => member(id, SKILLS))
+    && new Set(value.skills).size === value.skills.length
+    && (value.specialEffect === null || effects.includes(value.specialEffect as string))
+    && typeof value.favorite === 'boolean' && (value.testOnly === undefined || typeof value.testOnly === 'boolean')
+}
+
+function validPlayer(value: unknown): value is PlayerState {
+  if (!record(value) || !integer(value.level, 1) || !integer(value.experience) || !integer(value.currentHp) || !member(value.job, JOBS)
+    || !Array.isArray(value.inventory) || !value.inventory.every(validItem) || !record(value.equipment)) return false
+  if (new Set(value.inventory.map((item) => item.id)).size !== value.inventory.length) return false
+  const player = value as unknown as PlayerState
+  if (player.level < JOBS[player.job].unlockLevel || player.experience >= experienceToNext(player.level)) return false
+  const equipped: string[] = []
+  for (const slot of ['weapon', 'armor', 'accessory1', 'accessory2'] as const) {
+    const id = player.equipment[slot]
+    if (id === null) continue
+    if (!text(id) || equipped.includes(id)) return false
+    const item = player.inventory.find((candidate) => candidate.id === id)
+    if (!item || item.category !== (slot.startsWith('accessory') ? 'accessory' : slot) || !canEquip(player.job, item)) return false
+    equipped.push(id)
+  }
+  const stats = calculateStats(player)
+  return Object.values(stats).every((number) => integer(number)) && player.currentHp <= stats.maxHp
+}
+
+function validDungeon(value: unknown, theme: DungeonStock['theme']): value is GeneratedDungeon {
+  if (!record(value) || value.version !== 1 || !integer(value.level, 1, MAX_DUNGEON_LEVEL) || !integer(value.totalFloors, 1, 15)
+    || !Array.isArray(value.enemyKinds) || !value.enemyKinds.every((kind) => member(kind, ENEMY_DEFINITIONS))
+    || new Set(value.enemyKinds).size !== value.enemyKinds.length || !member(value.bossKind, ENEMY_DEFINITIONS)
+    || !member(value.featuredCategory, subtypes) || !integer(value.visualSeed, 0, 0xffffffff)
+    || !Array.isArray(value.floors) || value.floors.length !== value.totalFloors) return false
+  for (const floor of value.floors) {
+    if (!record(floor) || !integer(floor.floor, 1, 15) || !position(floor.start) || !position(floor.stairs)
+      || !(floor.chestCandidate === null || position(floor.chestCandidate))
+      || !Array.isArray(floor.map) || floor.map.length !== 20 || !floor.map.every((row) => Array.isArray(row) && row.length === 20 && row.every((tile) => tiles[theme].includes(tile)))
+      || !Array.isArray(floor.enemies) || !floor.enemies.every((enemy) => record(enemy) && text(enemy.id) && member(enemy.kind, ENEMY_DEFINITIONS) && integer(enemy.level, 1) && position(enemy.position) && typeof enemy.isBoss === 'boolean')) return false
+    if (new Set(floor.enemies.map((enemy) => enemy.id)).size !== floor.enemies.length) return false
+  }
+  return validateDungeon(value as unknown as GeneratedDungeon)
+}
+
+function validStocks(value: unknown): value is DungeonStock[] {
+  if (!Array.isArray(value) || value.length !== 3) return false
+  return createDungeonStocks().every((base, index) => {
+    const stock: unknown = value[index]
+    if (!record(stock) || stock.id !== base.id || stock.theme !== base.theme || stock.name !== base.name || stock.unlockLevel !== base.unlockLevel
+      || !integer(stock.highestFloor, 0, 15) || typeof stock.totalFloorsKnown !== 'boolean' || typeof stock.cleared !== 'boolean') return false
+    if (stock.dungeon === null) return stock.highestFloor === 0 && !stock.totalFloorsKnown && !stock.cleared
+    if (!validDungeon(stock.dungeon, base.theme)) return false
+    return stock.highestFloor <= stock.dungeon.totalFloors
+      && (!stock.cleared || (stock.totalFloorsKnown && stock.highestFloor === stock.dungeon.totalFloors))
+      && (stock.highestFloor !== stock.dungeon.totalFloors || stock.totalFloorsKnown)
+  })
+}
+
+export function readSaveData(value: unknown): SaveData {
+  if (!record(value)) throw new Error('セーブデータが破損しています。')
+  if (value.schemaVersion !== 1) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
+  try {
+    if (!isJson(value) || !text(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt)) || !validPlayer(value.player) || !validStocks(value.stocks)) throw new Error()
+    // 適用先との参照共有を防ぎ、何度ロードしても同じ状態へ置き換える。
+    return JSON.parse(JSON.stringify({ schemaVersion: 1, savedAt: value.savedAt, player: value.player, stocks: value.stocks })) as SaveData
+  } catch { throw new Error('セーブデータが破損しています。現在のデータは変更していません。') }
+}
+
+export function createSaveData(player: PlayerState, stocks: DungeonStock[], now = new Date()): SaveData {
+  return readSaveData({ schemaVersion: 1, savedAt: now.toISOString(), player, stocks })
+}

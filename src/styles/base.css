@@ -260,3 +260,6 @@ h1, h2, p { margin-top: 0; }
   button:not(:disabled) { transition: transform .08s ease, background-color .08s ease; }
   button:not(:disabled):active { transform: translate(2px, 2px); }
 }
+.save-load-panel { max-height: calc(100dvh - 32px); overflow-y: auto; background: #080808; color: #fff; border: 2px solid #fff; border-radius: 0; overflow-wrap: anywhere; }
+.save-load-panel fieldset { display: grid; gap: 8px; padding: 0; margin: 12px 0; border: 0; min-width: 0; }
+.save-load-panel button { min-height: 44px; background: #080808; color: #fff; border: 1px solid #fff; border-radius: 0; }
