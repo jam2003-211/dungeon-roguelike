@@ -12,7 +12,7 @@ const slots: Array<{ id: keyof EquipmentSlots; label: string; icon: IconName }> 
 
 function EquipmentImage({ item, fallbackIcon, className }: { item: EquipmentItem | undefined; fallbackIcon: IconName; className?: string }) {
   const path = item ? equipmentAssetPath(item) : null
-  return path ? <PixelAsset className={className ?? 'equipment-image'} src={path} alt="" /> : <Icon name={fallbackIcon} size="large" />
+  return path ? <PixelAsset className={className ?? 'equipment-image'} src={path} fallbackIcon={fallbackIcon} fallbackSize="large" alt="" /> : <Icon name={fallbackIcon} size="large" />
 }
 
 function ItemDetail({ item, player, readOnly, onClose, onChange }: { item: EquipmentItem; player: PlayerState; readOnly: boolean; onClose: () => void; onChange: (player: PlayerState) => void }) {

@@ -52,7 +52,8 @@ export const armorAssetPaths: Readonly<Record<ArmorType, string>> = {
 export function equipmentAssetPath(item: EquipmentItem): string | null {
   if (item.category === 'weapon') return weaponAssetPaths[item.subtype as WeaponType]
   if (item.category === 'armor') return armorAssetPaths[item.subtype as ArmorType]
-  return null
+  if (item.name === '力の護符' || item.name === '魔力の護符') return assetUrl('assets/accessories/ring.png')
+  return assetUrl('assets/accessories/necklace.png')
 }
 
 const imageCache = new Map<string, HTMLImageElement>()
