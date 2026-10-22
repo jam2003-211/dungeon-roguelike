@@ -23,7 +23,7 @@ export function TitleScreen({ onStart, onSettings }: TitleScreenProps) {
         <button className="primary-button title-start" type="button" onClick={handleStart}><Icon name="play" /> ゲーム開始</button>
         <button className="secondary-button" type="button" onClick={onSettings}><Icon name="settings" /> 設定</button>
       </div>
-      <p className="version-label">PROTOTYPE · STAGE 1</p>
+      <p className="version-label">PROTOTYPE · STAGE 2</p>
     </AppShell>
   )
 }

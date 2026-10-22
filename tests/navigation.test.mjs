@@ -43,4 +43,7 @@ test('ブラウザ履歴から不正な画面状態を復元しない', () => {
   assert.deepEqual(navigation.readNavigationState({ current: 'status', previous: ['title', 'town'] }), {
     current: 'status', previous: ['title', 'town'],
   })
+  assert.deepEqual(navigation.readNavigationState({ current: 'exploration', previous: ['title', 'town', 'dungeon'] }), {
+    current: 'exploration', previous: ['title', 'town', 'dungeon'],
+  })
 })

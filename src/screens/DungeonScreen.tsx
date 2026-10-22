@@ -2,7 +2,7 @@ import { Icon, type IconName } from '../components/Icon'
 import { AppShell, Panel, PlannedBadge, ScreenHeader } from '../components/Ui'
 import { dungeonStocks, initialPlayerView } from '../data/presentation'
 
-export function DungeonScreen({ onBack }: { onBack: () => void }) {
+export function DungeonScreen({ onBack, onStartTest }: { onBack: () => void; onStartTest: () => void }) {
   return (
     <AppShell>
       <ScreenHeader title="ダンジョン" subtitle="ダンジョンストック" onBack={onBack} />
@@ -25,6 +25,7 @@ export function DungeonScreen({ onBack }: { onBack: () => void }) {
                 <button type="button" disabled>レベル指定・生成</button>
                 <button type="button" disabled>探索開始</button>
               </div>
+              {stock.id === 1 && <button type="button" className="test-exploration-button" onClick={onStartTest}>テスト探索</button>}
             </Panel>
           )
         })}

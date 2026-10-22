@@ -78,7 +78,7 @@ async function evaluate(expression) {
 }
 
 async function waitFor(expression, message) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     if (await evaluate(expression)) return
     await delay(50)
   }
@@ -96,6 +96,23 @@ async function assertScreen(title) {
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${title}画面が横にはみ出しています。`)
 }
 
+async function assertExplorationScreen() {
+  await waitFor("document.querySelector('.dungeon-map')?.getAttribute('aria-label')?.includes('20×20')", 'テスト探索画面へ遷移できません。')
+  const layout = await evaluate(`(() => {
+    const canvas = document.querySelector('.dungeon-map');
+    const map = canvas.getBoundingClientRect();
+    const skills = document.querySelector('.skill-bar').getBoundingClientRect();
+    return {
+      canvasWidth: canvas.width, canvasHeight: canvas.height,
+      square: Math.abs(map.width - map.height) < 0.1,
+      insideViewport: map.left >= 0 && map.right <= innerWidth && map.top >= 0 && skills.bottom <= innerHeight,
+      noHorizontalScroll: document.documentElement.scrollWidth <= innerWidth,
+      noVerticalScroll: document.documentElement.scrollHeight <= innerHeight,
+    };
+  })()`)
+  assert.deepEqual(layout, { canvasWidth: 400, canvasHeight: 400, square: true, insideViewport: true, noHorizontalScroll: true, noVerticalScroll: true }, '探索画面が縦画面内に正しく収まっていません。')
+}
+
 async function clickButton(label) {
   const clicked = await evaluate(`(() => {
     const element = [...document.querySelectorAll('button')].find((button) => button.textContent.includes(${JSON.stringify(label)}) || button.getAttribute('aria-label')?.includes(${JSON.stringify(label)}));
@@ -104,6 +121,10 @@ async function clickButton(label) {
     return true;
   })()`)
   assert.equal(clicked, true, `${label}ボタンを操作できません。`)
+}
+
+async function pressKey(key, repeat = false) {
+  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, repeat: ${repeat} }))`)
 }
 
 async function assertAllDisabled(selector, expectedCount, message) {
@@ -166,6 +187,54 @@ try {
         '/assets/icons/forest.png', '/assets/icons/ruins.png', '/assets/icons/castle_dark.png',
       ], 'ダンジョンストックのアイコンが指定画像と一致しません。')
       assert.equal(await evaluate("[...document.querySelectorAll('.stock-card')].every((card, index) => getComputedStyle(card).backgroundImage.includes(['/assets/backgrounds/forest.png', '/assets/backgrounds/ruins.png', '/assets/backgrounds/castle.png'][index]))"), true, 'ストックカードの背景が指定画像と一致しません。')
+      assert.equal(await evaluate("document.querySelectorAll('.test-exploration-button').length"), 1, '森以外にもテスト探索ボタンがあります。')
+      await clickButton('テスト探索')
+      await assertExplorationScreen()
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '探索開始時のターンが0ではありません。')
+      assert.equal(await evaluate("document.querySelector('.dungeon-map').getAttribute('aria-label').includes('横3、縦18')"), true, '探索開始位置が不正です。')
+      assert.equal(await evaluate("document.querySelector('.attack-button').disabled && [...document.querySelectorAll('.skill-bar button')].every((button) => button.disabled)"), true, '未実装の攻撃またはスキルが有効です。')
+      await captureScreen('03-test-exploration')
+
+      await clickButton('上へ移動')
+      await waitFor("document.querySelector('.turn-display strong').textContent === '1'", '十字キーの移動でターンが進みません。')
+      await pressKey('ArrowRight')
+      await waitFor("document.querySelector('.turn-display strong').textContent === '2'", '矢印キーの移動でターンが進みません。')
+      await pressKey('ArrowRight')
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '2', '障害物への移動でターンが進みました。')
+      await pressKey('a')
+      await waitFor("document.querySelector('.turn-display strong').textContent === '3'", 'WASD移動でターンが進みません。')
+      await pressKey('ArrowDown', true)
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '3', 'キーリピートで移動しました。')
+
+      await clickButton('探索メニューを開く')
+      await waitFor("document.querySelector('.exploration-menu') !== null", '探索メニューが開きません。')
+      await pressKey('ArrowUp')
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '3', 'メニュー表示中に移動しました。')
+      await clickButton('ステータス確認')
+      await assertScreen('ステータス')
+      await clickButton('前の画面へ戻る')
+      await assertExplorationScreen()
+      assert.equal(await evaluate("document.querySelector('.exploration-menu') !== null"), true, 'ステータスから探索メニューへ戻りません。')
+      await clickButton('所持品確認')
+      await assertScreen('装備・所持品')
+      await clickButton('前の画面へ戻る')
+      await assertExplorationScreen()
+      await clickButton('ダンジョン情報')
+      await waitFor("document.querySelector('#dungeon-info-title') !== null", 'ダンジョン情報が開きません。')
+      assert.match(await evaluate("document.querySelector('.dialog-panel').innerText"), /経過ターン\s*3/, 'ダンジョン情報のターン表示が不正です。')
+      await clickButton('探索メニューへ戻る')
+      await clickButton('町へ帰還')
+      await waitFor("document.querySelector('#return-confirm-title') !== null", '帰還確認が開きません。')
+      await clickButton('キャンセル')
+      assert.equal(await evaluate("document.querySelector('#return-confirm-title') === null"), true, '帰還をキャンセルできません。')
+      await clickButton('町へ帰還')
+      await clickButton('帰還する')
+      await assertScreen('探索結果')
+      assert.match(await evaluate("document.querySelector('.result-panel').innerText"), /経過ターン\s*3/, '探索結果のターン表示が不正です。')
+      await captureScreen('04-exploration-result')
+      await clickButton('町へ戻る')
+      await assertScreen('町メニュー')
+      continue
     }
     if (heading === '職業変更') await assertAllDisabled('.job-card > button', 6, '職業変更操作')
     await clickButton('前の画面へ戻る')
@@ -206,14 +275,23 @@ try {
   for (const width of [360, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${width}px幅で横にはみ出しています。`)
-    await captureScreen(`town-${width}x844`)
+    await clickButton('ダンジョン')
+    await assertScreen('ダンジョン')
+    await clickButton('テスト探索')
+    await assertExplorationScreen()
+    assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '再探索時にターンが初期化されていません。')
+    await captureScreen(`exploration-${width}x844`)
+    await evaluate('history.back()')
+    await assertScreen('ダンジョン')
+    await clickButton('前の画面へ戻る')
+    await assertScreen('町メニュー')
   }
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     writeFileSync(process.env.SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'))
   }
-  console.log('ブラウザE2E: 360/390/430×844で主要遷移・戻る・無効操作・スライダー・横幅・エラーを確認しました。')
+  console.log('ブラウザE2E: 360/390/430×844で20×20描画・移動・衝突・探索メニュー・帰還・再探索・履歴・無効操作・横幅・エラーを確認しました。')
 } finally {
   socket.close()
   browser.kill()
