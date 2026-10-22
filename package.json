@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "node --test tests/navigation.test.mjs",
+    "test:browser": "node tests/browser-e2e.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
