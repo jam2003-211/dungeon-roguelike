@@ -127,6 +127,18 @@ async function pressKey(key, repeat = false) {
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, repeat: ${repeat} }))`)
 }
 
+async function clickMapCell(x, y) {
+  await evaluate(`(() => {
+    const canvas = document.querySelector('.dungeon-map');
+    const bounds = canvas.getBoundingClientRect();
+    canvas.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      clientX: bounds.left + (${x} + .5) * bounds.width / 20,
+      clientY: bounds.top + (${y} + .5) * bounds.height / 20,
+    }));
+  })()`)
+}
+
 async function assertAllDisabled(selector, expectedCount, message) {
   const result = await evaluate(`(() => {
     const buttons = [...document.querySelectorAll(${JSON.stringify(selector)})];
@@ -192,24 +204,46 @@ try {
       await assertExplorationScreen()
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '探索開始時のターンが0ではありません。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').getAttribute('aria-label').includes('横3、縦18')"), true, '探索開始位置が不正です。')
-      assert.equal(await evaluate("document.querySelector('.attack-button').disabled && [...document.querySelectorAll('.skill-bar button')].every((button) => button.disabled)"), true, '未実装の攻撃またはスキルが有効です。')
+      assert.equal(await evaluate("!document.querySelector('.attack-button').disabled && [...document.querySelectorAll('.skill-bar button')].every((button) => button.disabled)"), true, '通常攻撃または未実装スキルの有効状態が不正です。')
+      assert.equal(await evaluate("document.querySelector('.dungeon-map').getAttribute('aria-label').includes('敵7体')"), true, '通常敵6種とボスの固定配置がありません。')
+      await clickButton('攻撃')
+      assert.equal(await evaluate("document.querySelector('.attack-button').getAttribute('aria-pressed')"), 'true', '攻撃モードを開始できません。')
+      await clickMapCell(10, 10)
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '無効な攻撃対象でターンが進みました。')
+      await clickButton('攻撃')
+      assert.equal(await evaluate("document.querySelector('.attack-button').getAttribute('aria-pressed')"), 'false', '攻撃ボタン再押下で解除されません。')
+      await clickMapCell(2, 15)
+      await waitFor("document.querySelector('.enemy-sheet') !== null", '敵情報パネルが開きません。')
+      assert.match(await evaluate("document.querySelector('.enemy-sheet').innerText"), /ゴブリン[\s\S]*Lv\.1[\s\S]*HP 20 \/ 20[\s\S]*攻撃力 15/, '敵情報が不正です。')
+      await clickButton('敵情報を閉じる')
       await captureScreen('03-test-exploration')
 
       await clickButton('上へ移動')
       await waitFor("document.querySelector('.turn-display strong').textContent === '1'", '十字キーの移動でターンが進みません。')
+      await waitFor("Number(document.querySelector('.dungeon-map').dataset.yellowWarnings) > 0", '黄色の攻撃予告が表示されません。')
+      const hpBeforeEvade = await evaluate("document.querySelector('.exploration-player > span:nth-of-type(2)').textContent")
       await pressKey('ArrowRight')
       await waitFor("document.querySelector('.turn-display strong').textContent === '2'", '矢印キーの移動でターンが進みません。')
+      await waitFor("Number(document.querySelector('.dungeon-map').dataset.redWarnings) > 0", '赤色の攻撃予告へ変化しません。')
+      await captureScreen('03b-red-warning')
       await pressKey('ArrowRight')
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '2', '障害物への移動でターンが進みました。')
-      await pressKey('a')
+      await pressKey('s')
       await waitFor("document.querySelector('.turn-display strong').textContent === '3'", 'WASD移動でターンが進みません。')
+      assert.equal(await evaluate("document.querySelector('.exploration-player > span:nth-of-type(2)').textContent"), hpBeforeEvade, '予告範囲外へ退避したのにダメージを受けました。')
       await pressKey('ArrowDown', true)
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '3', 'キーリピートで移動しました。')
 
+      await clickButton('攻撃')
+      await clickMapCell(3, 16)
+      await waitFor("document.querySelector('.turn-display strong').textContent === '4'", '空マスへの通常攻撃でターンが進みません。')
+
+      await clickButton('攻撃')
       await clickButton('探索メニューを開く')
       await waitFor("document.querySelector('.exploration-menu') !== null", '探索メニューが開きません。')
+      assert.equal(await evaluate("document.querySelector('.attack-button').getAttribute('aria-pressed')"), 'false', 'メニューを開いても攻撃モードが解除されません。')
       await pressKey('ArrowUp')
-      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '3', 'メニュー表示中に移動しました。')
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '4', 'メニュー表示中に移動しました。')
       await clickButton('ステータス確認')
       await assertScreen('ステータス')
       await clickButton('前の画面へ戻る')
@@ -221,7 +255,7 @@ try {
       await assertExplorationScreen()
       await clickButton('ダンジョン情報')
       await waitFor("document.querySelector('#dungeon-info-title') !== null", 'ダンジョン情報が開きません。')
-      assert.match(await evaluate("document.querySelector('.dialog-panel').innerText"), /経過ターン\s*3/, 'ダンジョン情報のターン表示が不正です。')
+      assert.match(await evaluate("document.querySelector('.dialog-panel').innerText"), /経過ターン\s*4/, 'ダンジョン情報のターン表示が不正です。')
       await clickButton('探索メニューへ戻る')
       await clickButton('町へ帰還')
       await waitFor("document.querySelector('#return-confirm-title') !== null", '帰還確認が開きません。')
@@ -230,7 +264,7 @@ try {
       await clickButton('町へ帰還')
       await clickButton('帰還する')
       await assertScreen('探索結果')
-      assert.match(await evaluate("document.querySelector('.result-panel').innerText"), /経過ターン\s*3/, '探索結果のターン表示が不正です。')
+      assert.match(await evaluate("document.querySelector('.result-panel').innerText"), /経過ターン\s*4/, '探索結果のターン表示が不正です。')
       await captureScreen('04-exploration-result')
       await clickButton('町へ戻る')
       await assertScreen('町メニュー')
@@ -271,6 +305,8 @@ try {
     '/assets/arrows/arrow-left-16.png', '/assets/arrows/arrow-left-32.png',
     '/assets/arrows/arrow-up-16.png', '/assets/arrows/arrow-up-32.png',
     '/assets/arrows/arrow-down-16.png', '/assets/arrows/arrow-down-32.png',
+    '/assets/enemies/goblin.svg', '/assets/enemies/boar.svg', '/assets/enemies/slime-king.svg',
+    '/assets/enemies/cyclops-bat.svg', '/assets/enemies/stone-golem.svg', '/assets/enemies/ghost.svg',
   ])
   for (const width of [360, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
@@ -291,10 +327,13 @@ try {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     writeFileSync(process.env.SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'))
   }
-  console.log('ブラウザE2E: 360/390/430×844で20×20描画・移動・衝突・探索メニュー・帰還・再探索・履歴・無効操作・横幅・エラーを確認しました。')
+  console.log('ブラウザE2E: 360/390/430×844で20×20描画、敵情報、通常攻撃、黄/赤予告、退避、移動・衝突、メニュー中停止、帰還、履歴、無効操作、横幅、ブラウザエラーなしを確認しました。')
 } finally {
   socket.close()
-  browser.kill()
-  await delay(100)
-  rmSync(profileDirectory, { recursive: true, force: true })
+  if (browser.exitCode === null) {
+    const exited = new Promise((resolve) => browser.once('exit', resolve))
+    browser.kill()
+    await Promise.race([exited, delay(2000)])
+  }
+  rmSync(profileDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 }
