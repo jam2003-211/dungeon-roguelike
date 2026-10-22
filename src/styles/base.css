@@ -182,6 +182,11 @@ h1, h2, p { margin-top: 0; }
 .result-kind { display: block; margin-bottom: 14px; color: var(--gold); font-size: 1.1rem; text-align: center; }
 .result-panel > p { margin: 12px 0 0; color: var(--muted); font-size: .7rem; line-height: 1.6; text-align: center; }
 .result-town-button { width: 100%; margin-top: 14px; }
+.reward-list { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; }
+.reward-item { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px; border: 1px solid #aaa; border-left-width: 3px; }
+.reward-item > img, .reward-item > .icon { flex: 0 0 36px; width: 36px; height: 36px; object-fit: contain; image-rendering: pixelated; }
+.reward-item > span { min-width: 0; display: grid; gap: 3px; overflow-wrap: anywhere; }.reward-item strong { font-size: .75rem; }.reward-item small { color: var(--muted); font-size: .64rem; }
+.loot-toast { position: fixed; z-index: 35; left: 50%; top: 12%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); padding: 9px 12px; color: var(--gold); background: #050608; border: 2px solid var(--gold); font-size: .72rem; pointer-events: none; }
 
 /* 装備 */
 .equipment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

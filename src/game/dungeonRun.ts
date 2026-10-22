@@ -19,5 +19,5 @@ export function advanceDungeonRun(run: DungeonRunState, dungeon: GeneratedDungeo
   if (action !== 'next') return { run, cleared: false }
   const nextNumber = run.currentFloor + 1; const nextFloor = dungeon.floors[nextNumber - 1]
   const fresh = createBattleState(run.battle.player, instantiateEnemies(nextFloor), nextFloor.start)
-  return { cleared: false, run: { currentFloor: nextNumber, battle: { ...fresh, combat: { ...fresh.combat, turn: run.battle.combat.turn }, cooldowns: { ...run.battle.cooldowns }, guardTurns: run.battle.guardTurns, experienceEarned: run.battle.experienceEarned, levelNotices: [...run.battle.levelNotices] } } }
+  return { cleared: false, run: { currentFloor: nextNumber, battle: { ...fresh, loot: run.battle.loot, combat: { ...fresh.combat, turn: run.battle.combat.turn }, cooldowns: { ...run.battle.cooldowns }, guardTurns: run.battle.guardTurns, experienceEarned: run.battle.experienceEarned, levelNotices: [...run.battle.levelNotices] } } }
 }

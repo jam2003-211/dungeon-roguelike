@@ -3,8 +3,9 @@ import { hasLineOfSight, manhattanDistance, processEnemyTurn, type CombatState, 
 import { SKILLS } from './skills'
 import { SPECIAL_EFFECT_RATES, availableSkillPower, availableSkills, calculateStats, enemyExperience, equippedWeapon, gainExperience, type PlayerState, type SkillId, type SpecialEffectId, type WeaponType } from './player'
 import type { Direction } from './exploration'
+import type { LootState } from './loot'
 
-export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number }
+export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number; loot?: LootState }
 const offsets: Record<Direction, Position> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 const POISON_RATE = .05; const BURN_DAMAGE = 3; const LIFESTEAL_RATE = .5
 

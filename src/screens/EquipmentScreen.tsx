@@ -45,7 +45,7 @@ export function EquipmentScreen({ player, readOnly, onChange, onBack }: { player
   const selectedItem = player.inventory.find((item) => item.id === selected) ?? null
   return <AppShell>
     <ScreenHeader title="装備・所持品" subtitle={readOnly ? '探索中：閲覧のみ' : '町：装備を変更可能'} onBack={onBack} />
-    <p className="screen-intro">開発テスト用装備を表示しています。正式な報酬・ドロップではありません。</p>
+    <p className="screen-intro">獲得装備と開発テスト用装備を表示しています。試験用の装備は詳細に明記しています。</p>
     <div className="section-heading"><h2>現在の装備</h2></div>
     <div className="equipment-grid">{slots.map((slot) => { const equipped = player.inventory.find((item) => item.id === player.equipment[slot.id]); return <button type="button" className={`panel equipment-slot rarity-${equipped?.rarity ?? 'empty'}`} key={slot.id} disabled={readOnly || !equipped} onClick={() => onChange(unequipSlot(player, slot.id))}><EquipmentImage item={equipped} fallbackIcon={slot.icon} /><small>{slot.label}</small><strong>{equipped?.name ?? 'なし'}</strong>{!readOnly && equipped && <em>タップで解除</em>}</button> })}</div>
     <div className="section-heading inventory-heading"><h2>所持品</h2><span className="item-count">{player.inventory.length} items</span></div>
