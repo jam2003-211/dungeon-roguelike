@@ -1,5 +1,5 @@
 import type { EnemyKind } from './game/combat/combat'
-import type { ArmorType, EquipmentItem, JobId, WeaponType } from './game/player'
+import type { ArmorType, EquipmentItem, JobId, SkillId, WeaponType } from './game/player'
 
 const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
 
@@ -47,6 +47,21 @@ export const armorAssetPaths: Readonly<Record<ArmorType, string>> = {
   lightArmor: assetUrl('assets/armors/light_armor.png'),
   heavyRobe: assetUrl('assets/armors/heavy_clothes.png'),
   lightRobe: assetUrl('assets/armors/light_clothes.png'),
+}
+
+export const skillAssetPaths: Readonly<Record<SkillId, string>> = {
+  strongStrike: assetUrl('assets/skills/strong_strike.png'),
+  magicBolt: assetUrl('assets/skills/magic_bullet.png'),
+  piercingShot: assetUrl('assets/skills/piercing_strike.png'),
+  shockwave: assetUrl('assets/skills/shockwave.png'),
+  flame: assetUrl('assets/skills/flame.png'),
+  smallHeal: assetUrl('assets/skills/minor_heal.png'),
+  largeHeal: assetUrl('assets/skills/major_heal.png'),
+  poisonStrike: assetUrl('assets/skills/poison_strike.png'),
+  slowSpell: assetUrl('assets/skills/slow_magic.png'),
+  stunStrike: assetUrl('assets/skills/stun_strike.png'),
+  dash: assetUrl('assets/skills/dash.png'),
+  guard: assetUrl('assets/skills/guard.png'),
 }
 
 export function equipmentAssetPath(item: EquipmentItem): string | null {

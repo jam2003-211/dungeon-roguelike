@@ -47,9 +47,9 @@ let commandId = 0
 socket.addEventListener('message', (event) => {
   const message = JSON.parse(event.data)
   if (message.id && pending.has(message.id)) {
-    const { resolve, reject } = pending.get(message.id)
+    const { resolve, reject, method, params } = pending.get(message.id)
     pending.delete(message.id)
-    if (message.error) reject(new Error(message.error.message))
+    if (message.error) reject(new Error(`${method}: ${message.error.message}${method === 'Runtime.evaluate' ? ` (${params.expression.slice(0, 240)})` : ''}`))
     else resolve(message.result)
   }
   if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text)
@@ -66,7 +66,7 @@ await new Promise((resolve, reject) => {
 function command(method, params = {}) {
   commandId += 1
   return new Promise((resolve, reject) => {
-    pending.set(commandId, { resolve, reject })
+    pending.set(commandId, { resolve, reject, method, params })
     socket.send(JSON.stringify({ id: commandId, method, params }))
   })
 }
@@ -340,6 +340,8 @@ try {
       assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/armors/heavy_armor.png', '/assets/armors/heavy_clothes.png', '/assets/armors/light_armor.png', '/assets/armors/light_clothes.png'], '防具4種類の画像対応が不正です。')
       await setInputValue('.inventory-search', '試験用軽鎧')
       await clickButton('試験用軽鎧')
+      await waitFor("document.querySelectorAll('.item-detail .skill-inline-item img.skill-icon').length === 3 && [...document.querySelectorAll('.item-detail .skill-inline-item img.skill-icon')].every((image) => image.complete && image.naturalWidth > 0)", '装備付与スキルの画像が表示されません。')
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.item-detail .skill-inline-item img.skill-icon')].map((image) => image.getAttribute('src'))"), ['/assets/skills/strong_strike.png', '/assets/skills/piercing_strike.png', '/assets/skills/dash.png'], '装備詳細のスキル画像対応が正しくありません。')
       await clickButton('お気に入り登録')
       assert.equal(await evaluate("document.querySelector('.item-detail button:nth-of-type(3)').disabled"), true, 'お気に入り装備を廃棄できます。')
       await clickButton('装備する')
@@ -365,6 +367,7 @@ try {
   await clickButton('ステータス')
   await assertScreen('ステータス')
   assert.match(await evaluate("document.body.innerText"), /戦士[\s\S]*Lv\.30[\s\S]*強撃[\s\S]*気絶撃/, 'レベル・職業・装備スキルがステータスへ反映されていません。')
+  await waitFor("document.querySelectorAll('.effects-panel .skill-inline-item img.skill-icon').length === 7 && [...document.querySelectorAll('.effects-panel .skill-inline-item img.skill-icon')].every((image) => image.complete && image.naturalWidth > 0)", 'ステータス画面の装備スキル画像が表示されません。')
   assert.equal(await evaluate("document.querySelector('.status-profile .avatar img')?.getAttribute('src')"), '/assets/jobs/warrior.png', '職業変更後の画像がステータスへ反映されていません。')
   await captureScreen('screen-status')
   await clickButton('装備画面へ')
@@ -406,7 +409,7 @@ try {
     '/assets/weapons/sword.png', '/assets/weapons/spear.png', '/assets/weapons/bow.png', '/assets/weapons/wand.png', '/assets/weapons/staff.png',
     '/assets/armors/heavy_armor.png', '/assets/armors/light_armor.png', '/assets/armors/heavy_clothes.png', '/assets/armors/light_clothes.png',
   ])
-  for (const width of [360, 430]) {
+  for (const width of [390, 360, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${width}px幅で横にはみ出しています。`)
     await clickButton('ダンジョン')
@@ -416,6 +419,13 @@ try {
     assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '再探索時にターンが初期化されていません。')
     assert.ok(await evaluate("document.querySelectorAll('.skill-bar--active button').length >= 7"), '装備由来スキルが探索欄へ反映されていません。')
     assert.equal(await evaluate("document.querySelector('.skill-bar--active').scrollWidth > document.querySelector('.skill-bar--active').clientWidth"), true, 'スキル欄が横スクロール可能ではありません。')
+    await waitFor("[...document.querySelectorAll('.skill-bar--active button')].every((button) => button.querySelector('img.skill-icon')?.complete && button.querySelector('img.skill-icon')?.naturalWidth > 0)", '探索画面のスキル画像が読み込まれません。')
+    const displayedSkills = await evaluate("[...document.querySelectorAll('.skill-bar--active button')].map((button) => ({ id: button.dataset.skillId, name: button.querySelector('strong')?.textContent, cooldown: button.querySelector('small')?.textContent, src: button.querySelector('img.skill-icon')?.getAttribute('src'), loaded: (button.querySelector('img.skill-icon')?.naturalWidth ?? 0) > 0 }))")
+    const skillPaths = { strongStrike: 'strong_strike.png', magicBolt: 'magic_bullet.png', piercingShot: 'piercing_strike.png', shockwave: 'shockwave.png', flame: 'flame.png', smallHeal: 'minor_heal.png', largeHeal: 'major_heal.png', poisonStrike: 'poison_strike.png', slowSpell: 'slow_magic.png', stunStrike: 'stun_strike.png', dash: 'dash.png', guard: 'guard.png' }
+    assert.ok(displayedSkills.every((skill) => skill.name && /^CD /.test(skill.cooldown) && skill.src === `/assets/skills/${skillPaths[skill.id]}` && skill.loaded), `探索画面のスキル名・CD・画像が一致しません: ${JSON.stringify(displayedSkills)}`)
+    await evaluate("document.querySelector('[data-skill-id=strongStrike] .skill-icon').dispatchEvent(new Event('error'))")
+    await waitFor("document.querySelector('[data-skill-id=strongStrike] .icon--spark') !== null", 'スキル画像のフォールバックが表示されません。')
+    assert.equal(await evaluate("document.querySelector('[data-skill-id=strongStrike]').textContent.includes('強撃') && document.querySelector('[data-skill-id=strongStrike] small').textContent === 'CD 3'"), true, '画像読込失敗でスキル名・CDが失われました。')
     await clickButton('強撃')
     assert.equal(await evaluate("[...document.querySelectorAll('.skill-bar--active button')].find((button) => button.textContent.includes('強撃')).classList.contains('is-active')"), true, 'スキル対象選択を開始できません。')
     await clickButton('強撃')
@@ -423,7 +433,14 @@ try {
     await evaluate(`(() => { const button = [...document.querySelectorAll('.skill-bar--active button')].find((node) => node.textContent.includes('強撃')); button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); })()`)
     await waitFor("document.querySelector('.skill-info') !== null", 'スキル長押し相当の説明表示が開きません。')
     assert.match(await evaluate("document.querySelector('.skill-info').innerText"), /物理2倍[\s\S]*クールダウン：3/, 'スキル説明が不正です。')
+    await waitFor("document.querySelector('.skill-info-icon')?.naturalWidth > 0", 'スキル詳細にアイコンが表示されません。')
     await clickButton('閉じる')
+    const turnBeforeHeal = Number(await evaluate("document.querySelector('.turn-display strong').textContent"))
+    await clickButton('小回復')
+    await waitFor("document.querySelector('[data-skill-id=smallHeal]')?.disabled === true", 'クールダウン中のスキルが使用不可になりません。')
+    assert.equal(await evaluate("document.querySelector('[data-skill-id=smallHeal] small').textContent === 'CD 4'"), true, 'スキルのクールダウン表示が変わりました。')
+    await evaluate("document.querySelector('[data-skill-id=smallHeal]').click()")
+    assert.equal(Number(await evaluate("document.querySelector('.turn-display strong').textContent")), turnBeforeHeal + 1, '使用不可スキルが再実行されました。')
     await captureScreen(`exploration-${width}x844`)
     await evaluate('history.back()')
     await assertScreen('ダンジョン')

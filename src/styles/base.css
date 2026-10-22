@@ -153,9 +153,11 @@ h1, h2, p { margin-top: 0; }
 .skill-bar { width: min(100%, 400px); min-height: 42px; display: grid; grid-template-columns: 1fr 78px 78px; gap: 5px; margin: 0 auto; padding: 5px; color: var(--muted); background: #050608; border: 2px solid #fff; }
 .skill-bar > span { display: flex; align-items: center; padding-left: 7px; font-size: .65rem; }.skill-bar button { color: #888; background: #191a1e; border: 1px dashed #666; font-size: .58rem; }
 .skill-bar--active { display: flex; overflow-x: auto; gap: 6px; scrollbar-width: thin; }
-.skill-bar--active > button { flex: 0 0 82px; min-height: 38px; display: grid; place-items: center; color: #fff; border-style: solid; touch-action: pan-x; }
+.skill-bar--active > button { flex: 0 0 82px; min-height: 38px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: #fff; border-style: solid; touch-action: pan-x; }
 .skill-bar--active > button.is-active { background: #1e5935; border-color: #8ff0a8; }.skill-bar--active > button:disabled { color: #999; opacity: .65; }
-.skill-bar--active button strong { font-size: .62rem; }.skill-bar--active button small { font-size: .5rem; }
+.skill-button__label { display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 0; max-width: 100%; }.skill-button__label strong { min-width: 0; overflow-wrap: anywhere; line-height: 1.05; }.skill-bar--active button strong { font-size: .62rem; }.skill-bar--active button small { font-size: .5rem; }
+.skill-icon, .skill-info-icon { display: inline-block; width: 20px; height: 20px; flex: 0 0 20px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; }.skill-info-icon { width: 26px; height: 26px; flex-basis: 26px; }.skill-button__label .icon { width: 20px; height: 20px; flex: 0 0 20px; }
+.skill-inline-list { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; }.skill-inline-item { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; }.skill-inline-item .skill-icon { width: 18px; height: 18px; flex-basis: 18px; }.skill-inline-item .icon { width: 18px; height: 18px; flex-basis: 18px; }
 .level-toast { position: fixed; z-index: 40; top: 18%; left: 50%; padding: 10px 18px; transform: translateX(-50%); color: #fff3b0; background: #050608; border: 2px solid var(--gold); box-shadow: 4px 4px #000; font-weight: 800; }
 .modal-layer { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(0, 0, 0, .78); }
 .modal-layer--front { z-index: 30; }
