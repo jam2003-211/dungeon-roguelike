@@ -19,6 +19,58 @@ function enemy(id, x, y, level = 5, boss = false) { return combat.createEnemy(id
 function withWeapon(id) { let state = player.createPlayerState(); return player.equipItem(state, id) }
 function withAllSkills() { const state = player.createPlayerState(); const armor = { ...state.inventory.find((item) => item.id === 'test-light-armor'), id: 'all-skills', skills: Object.keys(skills.SKILLS) }; return { ...state, inventory: [...state.inventory, armor], equipment: { ...state.equipment, armor: 'all-skills' } } }
 
+test('自動対象は距離・HP・右左上下・安定座標の順で決定する', () => {
+  const state = battle.createBattleState(withAllSkills(), [enemy('down', 10, 11), enemy('up', 10, 9), enemy('left', 9, 10), enemy('right', 11, 10)], { x: 10, y: 10 })
+  for (const id of ['right', 'left', 'up', 'down']) {
+    assert.equal(battle.selectAutoTarget(state, openMap()).id, id)
+    assert.equal(battle.selectAutoTarget(state, openMap(), 'strongStrike').id, id)
+    state.combat.enemies = state.combat.enemies.filter((candidate) => candidate.id !== id)
+  }
+  state.combat.enemies = [enemy('near', 10, 11), { ...enemy('far', 12, 10), hp: 1 }]
+  assert.equal(battle.selectAutoTarget(state, openMap(), 'magicBolt').id, 'near')
+  state.combat.enemies = [enemy('right', 11, 10), { ...enemy('left', 9, 10), hp: 1 }]
+  assert.equal(battle.selectAutoTarget(state, openMap()).id, 'left')
+  state.combat.enemies = [enemy('left-up', 9, 9), enemy('right-down', 11, 11), enemy('right-up', 11, 9)]
+  assert.equal(battle.selectAutoTarget(state, openMap(), 'magicBolt').id, 'right-up')
+  state.combat.enemies.reverse()
+  assert.equal(battle.selectAutoTarget(state, openMap(), 'magicBolt').id, 'right-up')
+  state.combat.enemies = [enemy('b', 12, 9), enemy('a', 11, 8)]
+  assert.equal(battle.selectAutoTarget(state, openMap(), 'magicBolt').id, 'a')
+})
+
+test('自動対象は射程・遮蔽・生存・CDを判定し、対象なしでは状態を消費しない', () => {
+  const state = battle.createBattleState(withAllSkills(), [enemy('far', 16, 10), enemy('blocked', 12, 10), { ...enemy('dead', 10, 11), hp: 0 }], { x: 10, y: 10 })
+  const map = openMap([{ x: 11, y: 10 }])
+  const before = structuredClone(state)
+  assert.equal(battle.selectAutoTarget(state, map), null)
+  assert.equal(battle.selectAutoTarget(state, map, 'magicBolt'), null)
+  assert.deepEqual(state, before)
+  const bow = battle.createBattleState(withWeapon('test-bow'), [enemy('blocked', 12, 10), enemy('diagonal', 11, 11)], { x: 10, y: 10 })
+  assert.equal(battle.selectAutoTarget(bow, map), null)
+  for (const id of ['flame', 'piercingShot', 'shockwave', 'smallHeal', 'guard', 'dash']) assert.equal(battle.selectAutoTarget(state, map, id), null)
+  state.cooldowns.magicBolt = 1
+  assert.equal(battle.selectAutoTarget(state, openMap(), 'magicBolt'), null)
+})
+
+test('自動対象への通常攻撃・単体スキルは既存の倍率と状態異常を維持する', () => {
+  for (const id of [undefined, 'strongStrike', 'magicBolt', 'poisonStrike', 'slowSpell', 'stunStrike']) {
+    const state = battle.createBattleState(withAllSkills(), [enemy('target', 11, 10)], { x: 10, y: 10 })
+    const target = battle.selectAutoTarget(state, openMap(), id)
+    const next = id ? battle.useSkill(state, id, target.position, openMap()) : battle.attackWithWeapon(state, target.position, openMap(), () => 1)
+    const expected = id ? battle.useSkill(state, id, { x: 11, y: 10 }, openMap()) : battle.attackWithWeapon(state, { x: 11, y: 10 }, openMap(), () => 1)
+    assert.equal(next.combat.turn, 1)
+    assert.deepEqual(next, expected)
+  }
+})
+
+test('表示範囲外の敵も有効行動後に追跡を続ける', () => {
+  const distant = { ...enemy('offscreen', 17, 10), discovered: true }
+  const state = battle.createBattleState(player.createPlayerState(), [distant], { x: 10, y: 10 })
+  const next = battle.moveBattlePlayer(state, 'left', openMap())
+  assert.equal(next.combat.turn, 1)
+  assert.notDeepEqual(next.combat.enemies[0].position, distant.position)
+})
+
 test('武器5種類の攻撃範囲と遮蔽を判定する', () => {
   const expected = { 'initial-sword': 4, 'test-spear': 12, 'test-bow': 16, 'test-short-staff': 24, 'test-long-staff': 60 }
   for (const [id, count] of Object.entries(expected)) { const state = battle.createBattleState(withWeapon(id), []); state.combat.position = { x: 10, y: 10 }; assert.equal(battle.getPlayerAttackCells(state.player, state.combat.position, openMap()).length, count, id) }

@@ -18,6 +18,22 @@ function seeded(seed) { let value = seed >>> 0; return () => { value = (value * 
 function withFloor(total, seed = 1) { const next = seeded(seed); let first = true; return () => { if (first) { first = false; return (total - .5) / 15 } return next() } }
 function positionKey(position) { return `${position.x},${position.y}` }
 
+test('外観シードは生成データのJSON往復で保持され、地形・通行判定を変えない', () => {
+  for (const theme of ['forest', 'ruins', 'castle']) {
+    const generated = dungeon.createDungeon(1, theme, withFloor(2, 41))
+    const restored = JSON.parse(JSON.stringify(generated))
+    assert.equal(restored.visualSeed, generated.visualSeed)
+    assert.ok(Number.isInteger(restored.visualSeed))
+    assert.equal(dungeon.validateDungeon(restored), true)
+    const other = dungeon.createDungeon(1, theme, withFloor(2, 42))
+    assert.notEqual(other.visualSeed, generated.visualSeed)
+    assert.deepEqual(generated.floors, restored.floors)
+    const noVisual = { ...restored }; delete noVisual.visualSeed
+    assert.equal(dungeon.validateDungeon(noVisual), true)
+    for (let i = 0; i < generated.floors.length; i += 1) assert.deepEqual(dungeon.reachableDistances(generated.floors[i].map, generated.floors[i].start), dungeon.reachableDistances(restored.floors[i].map, restored.floors[i].start))
+  }
+})
+
 test('生成Lv入力は正の整数だけを受け入れ、極端な値を拒否する', () => {
   for (const invalid of ['', '0', '-1', '1.5', 'abc', ' 1', '1000001']) assert.equal(dungeon.parseDungeonLevel(invalid), null, invalid)
   assert.equal(dungeon.parseDungeonLevel('1'), 1); assert.equal(dungeon.parseDungeonLevel('1000000'), 1000000)

@@ -96,3 +96,20 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
   }
   return finishAction(next, { ...next.combat, turn: next.combat.turn + 1 }, map)
 }
+
+// カメラの表示範囲によらず、既存の射程・遮蔽判定から生存敵を選ぶ。
+export function selectAutoTarget(state: BattleState, map: ForestMap = FOREST_MAP, skillId?: SkillId): EnemyState | null {
+  if (state.combat.finished || (skillId && (SKILLS[skillId].target !== 'single' || !availableSkills(state.player).includes(skillId) || (state.cooldowns[skillId] ?? 0) > 0))) return null
+  const origin = state.combat.position
+  const cells = skillId ? getSkillTargetCells(state, skillId, map) : getPlayerAttackCells(state.player, origin, map)
+  const horizontal = (position: Position) => position.x > origin.x ? 0 : position.x < origin.x ? 1 : 2
+  const vertical = (position: Position) => position.y < origin.y ? 0 : position.y === origin.y ? 1 : 2
+  return state.combat.enemies.filter((enemy) => enemy.hp > 0 && cells.some((cell) => same(cell, enemy.position))).sort((a, b) =>
+    manhattanDistance(origin, a.position) - manhattanDistance(origin, b.position)
+    || a.hp - b.hp
+    || horizontal(a.position) - horizontal(b.position)
+    || vertical(a.position) - vertical(b.position)
+    || a.position.y - b.position.y || a.position.x - b.position.x
+    || a.id.localeCompare(b.id)
+  )[0] ?? null
+}

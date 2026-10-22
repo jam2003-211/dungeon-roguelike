@@ -23,6 +23,7 @@ export interface DungeonFloor {
 }
 
 export interface GeneratedDungeon {
+  visualSeed?: number
   version: 1
   level: number
   totalFloors: number
@@ -151,7 +152,9 @@ export function createDungeon(level: number, theme: DungeonTheme, random: () => 
   const bossKind = enemyKinds[integer(random, 0, enemyKinds.length - 1)]
   const featuredCategory = CATEGORIES[integer(random, 0, CATEGORIES.length - 1)]
   const floors = Array.from({ length: totalFloors }, (_, index) => createFloor(theme, index + 1, totalFloors, level, enemyKinds, bossKind, random))
-  const dungeon: GeneratedDungeon = { version: 1, level, totalFloors, enemyKinds, bossKind, featuredCategory, floors }
+  // 地形・敵配置の乱数列を変えないよう、生成後に外観専用シードを取る。
+  const visualSeed = integer(random, 0, 0xffffffff)
+  const dungeon: GeneratedDungeon = { visualSeed, version: 1, level, totalFloors, enemyKinds, bossKind, featuredCategory, floors }
   if (!validateDungeon(dungeon)) throw new Error('生成したダンジョンの検証に失敗しました。')
   return dungeon
 }

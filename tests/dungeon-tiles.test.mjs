@@ -9,6 +9,20 @@ const visuals = await import(`data:text/javascript;base64,${Buffer.from(compiled
 const assetsSource = readFileSync(new URL('../src/assets.ts', import.meta.url), 'utf8')
 const assets = Object.fromEntries([...assetsSource.matchAll(/^  (\w+): assetUrl\('assets\/dungeon-tiles\/([\w_]+\.png)'\),$/gm)].map((match) => [match[1], match[2]]))
 
+test('床はシードで固定され、テーマ全体で短い周期を持たず基本床が多い', () => {
+  for (const theme of ['forest', 'ruins', 'castle']) {
+    const pattern = (seed) => Array.from({ length: 400 }, (_, i) => visuals.getDungeonTileVisual(theme, 1, i % 20, Math.floor(i / 20), true, seed))
+    const first = pattern(123456)
+    assert.deepEqual(first, pattern(123456))
+    assert.notDeepEqual(first, pattern(654321))
+    assert.notDeepEqual(first, Array.from({ length: 400 }, (_, i) => visuals.getDungeonTileVisual(theme, 2, i % 20, Math.floor(i / 20), true, 123456)))
+    for (let period = 1; period <= 20; period += 1) assert.ok(first.some((tile, i) => i >= period && tile !== first[i - period]))
+    const base = visuals.DUNGEON_TILE_VARIANTS[theme].floor[0]
+    assert.ok(first.filter((tile) => tile === base).length > 200)
+    for (let i = 0; i < 400; i += 1) assert.equal(visuals.getDungeonTileVisual(theme, 1, i % 20, Math.floor(i / 20), false, 1), visuals.getDungeonTileVisual(theme, 1, i % 20, Math.floor(i / 20), false, 2))
+  }
+})
+
 test('35種のダンジョンタイル画像が128×128 PNGとして登録されている', () => {
   assert.equal(Object.keys(assets).length, 35)
   for (const filename of Object.values(assets)) {

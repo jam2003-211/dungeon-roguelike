@@ -110,8 +110,7 @@ export const chestAssetPaths = {
 export function equipmentAssetPath(item: EquipmentItem): string | null {
   if (item.category === 'weapon') return weaponAssetPaths[item.subtype as WeaponType]
   if (item.category === 'armor') return armorAssetPaths[item.subtype as ArmorType]
-  if (item.name === '力の護符' || item.name === '魔力の護符') return assetUrl('assets/accessories/ring.png')
-  return assetUrl('assets/accessories/necklace.png')
+  return assetUrl(item.skills.length > 0 ? 'assets/accessories/necklace.png' : 'assets/accessories/ring.png')
 }
 
 const imageCache = new Map<string, HTMLImageElement>()

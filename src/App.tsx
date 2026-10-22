@@ -122,7 +122,7 @@ function App() {
     case 'dungeon': return <DungeonScreen playerLevel={player.level} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
     case 'exploration':
       if (!activeRun || !activeStock || !activeDungeon || !activeFloor) return <TownScreen player={player} onNavigate={openScreen} />
-      return <ExplorationScreen onOpenChest={handleOpenChest} onClearLootNotice={() => setExploration((current) => current.loot ? { ...current, loot: { ...current.loot, notices: current.loot.notices.slice(1) } } : current)} onTestApproachChest={() => setExploration((current) => {
+      return <ExplorationScreen visualSeed={activeDungeon.visualSeed ?? 0} onOpenChest={handleOpenChest} onClearLootNotice={() => setExploration((current) => current.loot ? { ...current, loot: { ...current.loot, notices: current.loot.notices.slice(1) } } : current)} onTestApproachChest={() => setExploration((current) => {
         const chest = current.loot?.chests.find((candidate) => candidate.floor === activeRun.floor && !candidate.opened)
         if (!chest) return current
         const position = [{ x: chest.position.x, y: chest.position.y - 1 }, { x: chest.position.x - 1, y: chest.position.y }, { x: chest.position.x + 1, y: chest.position.y }, { x: chest.position.x, y: chest.position.y + 1 }].find((candidate) => isPassable(activeFloor.map, candidate))
