@@ -1,3 +1,4 @@
+import { assetUrl } from '../assets'
 import { Icon, type IconName } from '../components/Icon'
 import { AppShell, Panel, PlannedBadge, ScreenHeader } from '../components/Ui'
 import { dungeonStocks, initialPlayerView } from '../data/presentation'
@@ -11,7 +12,7 @@ export function DungeonScreen({ onBack, onStartTest }: { onBack: () => void; onS
         {dungeonStocks.map((stock) => {
           const unlocked = initialPlayerView.level >= stock.unlockLevel
           return (
-            <Panel className={`stock-card stock-card--${stock.id} ${unlocked ? '' : 'is-locked'}`} key={stock.id}>
+            <Panel className={`stock-card stock-card--${stock.id} ${unlocked ? '' : 'is-locked'}`} key={stock.id} style={{ backgroundImage: `linear-gradient(rgba(5, 6, 8, .86), rgba(5, 6, 8, .94)), url(${assetUrl(`assets/backgrounds/${stock.id === 1 ? 'forest' : stock.id === 2 ? 'ruins' : 'castle'}.png`)})` }}>
               <div className="stock-card__top">
                 <div className="stock-icon"><Icon name={stock.icon as IconName} size="large" /></div>
                 <div className="stock-title"><small>ストック {stock.id}</small><h2>{stock.name}</h2><p>{stock.description}</p></div>

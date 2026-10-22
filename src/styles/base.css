@@ -80,6 +80,7 @@ h1, h2, p { margin-top: 0; }
 .level-chip small { color: var(--gold); font: .54rem ui-monospace, monospace; letter-spacing: .08em; }
 .player-summary { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 11px; margin-bottom: 10px; }
 .avatar { width: 46px; height: 46px; display: grid; place-items: center; background: #16191e; border: 1px solid var(--border); border-radius: 2px; }
+.avatar img, .job-icon img, .exploration-avatar img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .player-summary > div:nth-child(2) { display: grid; gap: 2px; }
 .player-summary span { color: var(--muted); font-size: .7rem; }
 .hp-summary { display: grid; gap: 2px; text-align: right; }
@@ -122,7 +123,7 @@ h1, h2, p { margin-top: 0; }
 .exploration-player strong, .exploration-player > span:last-child { overflow: hidden; color: #fff; font-size: .69rem; white-space: nowrap; text-overflow: ellipsis; }
 .exploration-player > span:last-child { grid-column: 2; font-size: .64rem; }
 .exploration-avatar { grid-row: 1 / 3; width: 34px; height: 34px; display: grid; place-items: center; background: #15191c; border: 1px solid #fff; }
-.exploration-avatar .icon { width: 28px; height: 28px; }
+.exploration-avatar .icon { width: 28px; height: 28px; }.exploration-avatar img { padding: 1px; }
 .hud-hp-track { grid-column: 2; width: 100%; height: 4px; overflow: hidden; background: #351717; border: 1px solid #7e5f5f; }
 .hud-hp-track i { display: block; height: 100%; background: #e84e4e; }
 .exploration-place { display: grid; gap: 1px; text-align: right; white-space: nowrap; }
@@ -177,6 +178,7 @@ h1, h2, p { margin-top: 0; }
 /* 装備 */
 .equipment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .equipment-slot { min-height: 116px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 11px; text-align: center; border-top-width: 3px; }
+.equipment-image { width: 48px; height: 48px; object-fit: contain; image-rendering: pixelated; }
 .equipment-slot small { color: var(--muted); font-size: .63rem; }.equipment-slot strong { font-size: .76rem; }
 .equipment-slot:not(:disabled) { color: #fff; cursor: pointer; }.equipment-slot:disabled { color: #fff; opacity: 1; }.equipment-slot em { color: var(--muted); font-size: .55rem; font-style: normal; }
 .rarity-common { border-top-color: #cbd5db; }.rarity-empty { border-top-color: #686b70; }
@@ -187,13 +189,14 @@ h1, h2, p { margin-top: 0; }
 .empty-inventory { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 20px; text-align: center; border-style: dashed; }
 .empty-inventory strong { font-size: .82rem; }.empty-inventory p { margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.55; }
 .inventory-search { width: 100%; min-height: 42px; margin-bottom: 8px; padding: 8px 10px; color: #fff; background: #0b0d10; border: 1px solid #fff; }
-.inventory-list { display: grid; gap: 7px; }.inventory-item { min-height: 58px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 9px 11px; color: #fff; text-align: left; cursor: pointer; border-left-width: 4px; }.inventory-item span, .inventory-item small { color: var(--muted); font-size: .61rem; }.inventory-item small { grid-column: 1 / -1; }
-.item-detail { max-height: calc(100dvh - 32px); overflow-y: auto; }.item-actions { display: grid; gap: 6px; }.slot-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 9px 0; }.slot-choice p { grid-column: 1 / -1; margin: 0; }.error-text { color: #ff9b9b !important; }
+.inventory-list { display: grid; gap: 7px; }.inventory-item { min-height: 66px; display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 4px 10px; padding: 7px 11px; color: #fff; text-align: left; cursor: pointer; border-left-width: 4px; }.inventory-item span, .inventory-item small { color: var(--muted); font-size: .61rem; }.inventory-item small { grid-column: 2 / -1; }.inventory-item__image { grid-row: 1 / 3; width: 48px; height: 48px; object-fit: contain; image-rendering: pixelated; }
+.item-detail { max-height: calc(100dvh - 32px); overflow-y: auto; }.item-detail__image { float: right; width: 96px; height: 96px; margin: 0 0 8px 10px; object-fit: contain; image-rendering: pixelated; }.item-actions { display: grid; gap: 6px; }.slot-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 9px 0; }.slot-choice p { grid-column: 1 / -1; margin: 0; }.error-text { color: #ff9b9b !important; }
 .rarity-rare { border-color: #62aef1; }.rarity-epic { border-color: #bd79f0; }.rarity-legendary { border-color: #f0c95e; }
 
 /* ステータス */
 .status-profile { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 14px; margin-bottom: 9px; }
 .avatar--large { width: 58px; height: 58px; }.status-profile h2 { margin: 0 0 3px; }.status-profile span { color: var(--muted); font-size: .72rem; }
+.equipment-thumb { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; image-rendering: pixelated; }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .stat-card { min-height: 82px; display: grid; align-content: center; gap: 5px; padding: 12px; }.stat-card small { color: #fff; }.stat-card strong, .stat-card--hp strong { color: #fff; font-size: 1.4rem; }.stat-card strong span { color: #fff; font-size: .72rem; }
 .experience-panel { display: grid; gap: 7px; padding: 13px; margin-top: 8px; }.experience-panel > div:first-child { display: flex; justify-content: space-between; font-size: .76rem; }.experience-panel small { color: var(--muted); font-size: .65rem; }
@@ -205,7 +208,7 @@ h1, h2, p { margin-top: 0; }
 .job-list { display: grid; gap: 8px; }
 .test-level-button { width: 100%; min-height: 40px; margin: 0 0 9px; color: #ffe9a3; background: #2b2414; border: 1px dashed var(--gold); cursor: pointer; }
 .job-card { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 11px; }
-.job-card.is-locked { opacity: .5; filter: grayscale(.8); }.job-icon { width: 46px; height: 46px; display: grid; place-items: center; background: #17191d; border: 1px solid #777; border-radius: 2px; }
+.job-card.is-locked { opacity: .5; filter: grayscale(.8); }.job-icon { width: 46px; height: 46px; display: grid; place-items: center; overflow: hidden; background: #17191d; border: 1px solid #777; border-radius: 2px; }
 .job-copy > div { display: flex; align-items: center; gap: 7px; }.job-copy h2 { margin: 0; font-size: .9rem; }.job-copy p { margin: 3px 0 0; color: var(--muted); font-size: .63rem; line-height: 1.4; }
 .current-badge { padding: 2px 6px; color: #fff; background: var(--selected); border: 1px solid #fff; border-radius: 1px; font-size: .53rem; font-weight: 800; }
 .job-action { color: var(--muted); }.job-card > button { grid-column: 1 / -1; width: 100%; }

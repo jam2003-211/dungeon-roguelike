@@ -1,3 +1,5 @@
+import { assetUrl } from '../assets'
+
 export type IconName =
   | 'play' | 'settings' | 'town' | 'player' | 'dungeon' | 'equipment' | 'status' | 'jobs' | 'save' | 'back' | 'return'
   | 'forest' | 'ruins' | 'castle' | 'lock' | 'weapon' | 'armor' | 'accessory' | 'bag' | 'spark'
@@ -6,18 +8,18 @@ export type IconName =
 interface IconProps { name: IconName; size?: 'small' | 'medium' | 'large' }
 
 const assetIcons: Partial<Record<IconName, string>> = {
-  settings: '/assets/icons/settings.png',
-  player: '/assets/icons/player.png',
-  dungeon: '/assets/icons/dungeon.png',
-  equipment: '/assets/icons/equipment.png',
-  status: '/assets/icons/status.png',
-  jobs: '/assets/icons/jobs.png',
-  save: '/assets/icons/save.png',
-  return: '/assets/icons/return.png',
-  back: '/assets/arrows/arrow-left-32.png',
-  forest: '/assets/icons/forest.png',
-  ruins: '/assets/icons/ruins.png',
-  castle: '/assets/icons/castle_dark.png',
+  settings: assetUrl('assets/icons/settings.png'),
+  player: assetUrl('assets/icons/player.png'),
+  dungeon: assetUrl('assets/icons/dungeon.png'),
+  equipment: assetUrl('assets/icons/equipment.png'),
+  status: assetUrl('assets/icons/status.png'),
+  jobs: assetUrl('assets/icons/jobs.png'),
+  save: assetUrl('assets/icons/save.png'),
+  return: assetUrl('assets/icons/return.png'),
+  back: assetUrl('assets/arrows/arrow-left-32.png'),
+  forest: assetUrl('assets/icons/forest.png'),
+  ruins: assetUrl('assets/icons/ruins.png'),
+  castle: assetUrl('assets/icons/castle_dark.png'),
 }
 
 const iconColors: Record<IconName, [string, string, string]> = {

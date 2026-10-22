@@ -170,6 +170,30 @@ async function assertImageAssets(paths) {
   }
 }
 
+async function assertTransparentPixelAssets(paths) {
+  const results = await evaluate(`(async () => {
+    const results = [];
+    for (const path of ${JSON.stringify(paths)}) {
+      const image = new Image(); image.src = path; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true }); context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let transparent = 0; let opaqueDark = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        if (pixels[index + 3] === 0) transparent += 1;
+        if (pixels[index + 3] > 200 && pixels[index] < 45 && pixels[index + 1] < 45 && pixels[index + 2] < 45) opaqueDark += 1;
+      }
+      results.push({ path, width: canvas.width, height: canvas.height, transparent, opaqueDark });
+    }
+    return results;
+  })()`)
+  for (const result of results) {
+    assert.equal(result.width, result.height, `${result.path}の縦横比が正方形ではありません。`)
+    assert.ok(result.transparent > 0, `${result.path}に透明背景がありません。`)
+    assert.ok(result.opaqueDark > 0, `${result.path}の黒い輪郭または目が透明化されています。`)
+  }
+}
+
 async function captureScreen(name) {
   if (!screenshotDirectory) return
   mkdirSync(screenshotDirectory, { recursive: true })
@@ -194,6 +218,7 @@ try {
     '/assets/icons/settings.png', '/assets/icons/save.png', '/assets/icons/return.png',
   ], '町メニューのアイコンが指定画像と一致しません。')
   assert.equal(await evaluate("[...document.querySelectorAll('.town-menu .action-button__chevron img')].every((image) => image.getAttribute('src') === '/assets/arrows/arrow-right-16.png' && image.complete && image.naturalWidth === 16)"), true, '町メニューの右矢印が正しく表示されていません。')
+  assert.equal(await evaluate("document.querySelector('.player-summary .avatar img')?.getAttribute('src')"), '/assets/jobs/none.png', '町メニューに無職画像が表示されていません。')
   await captureScreen('02-town')
 
   for (const [button, heading] of [
@@ -215,6 +240,7 @@ try {
       assert.equal(await evaluate("document.querySelector('.dungeon-map').getAttribute('aria-label').includes('横3、縦18')"), true, '探索開始位置が不正です。')
       assert.equal(await evaluate("!document.querySelector('.attack-button').disabled && [...document.querySelectorAll('.skill-bar button')].every((button) => button.disabled)"), true, '通常攻撃または未実装スキルの有効状態が不正です。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').getAttribute('aria-label').includes('敵7体')"), true, '通常敵6種とボスの固定配置がありません。')
+      assert.equal(await evaluate("document.querySelector('.exploration-avatar img')?.getAttribute('src')"), '/assets/jobs/none.png', '探索HUDに現在職業の画像が表示されていません。')
       await clickButton('攻撃')
       assert.equal(await evaluate("document.querySelector('.attack-button').getAttribute('aria-pressed')"), 'true', '攻撃モードを開始できません。')
       await clickMapCell(10, 10)
@@ -224,6 +250,7 @@ try {
       await clickMapCell(2, 15)
       await waitFor("document.querySelector('.enemy-sheet') !== null", '敵情報パネルが開きません。')
       assert.match(await evaluate("document.querySelector('.enemy-sheet').innerText"), /ゴブリン[\s\S]*Lv\.1[\s\S]*HP 20 \/ 20[\s\S]*攻撃力 15/, '敵情報が不正です。')
+      assert.equal(await evaluate("document.querySelector('.enemy-sheet img')?.getAttribute('src')"), '/assets/enemies/goblin.png', '敵情報に正式ゴブリン画像が表示されていません。')
       await clickButton('敵情報を閉じる')
       await captureScreen('03-test-exploration')
 
@@ -288,7 +315,9 @@ try {
     }
     if (heading === '装備・所持品') {
       assert.match(await evaluate("document.querySelector('.screen-intro').innerText"), /開発テスト用装備/, 'テスト装備が正式報酬と区別されていません。')
+      assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/weapons/bow.png', '/assets/weapons/spear.png', '/assets/weapons/staff.png', '/assets/weapons/sword.png', '/assets/weapons/wand.png'], '武器5種類の画像対応が不正です。')
       await clickExactButton('防具')
+      assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/armors/heavy_armor.png', '/assets/armors/heavy_clothes.png', '/assets/armors/light_armor.png', '/assets/armors/light_clothes.png'], '防具4種類の画像対応が不正です。')
       await setInputValue('.inventory-search', '試験用軽鎧')
       await clickButton('試験用軽鎧')
       await clickButton('お気に入り登録')
@@ -301,6 +330,7 @@ try {
       assert.equal(await evaluate("[...document.querySelectorAll('.equipment-slot strong')].filter((node) => node.textContent.includes('試験護符')).length"), 2, 'アクセサリー2枠へ装備できません。')
     }
     if (heading === '職業変更') {
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.job-icon img')].map((image) => image.getAttribute('src'))"), ['/assets/jobs/none.png', '/assets/jobs/warrior.png', '/assets/jobs/mage.png', '/assets/jobs/hunter.png', '/assets/jobs/paladin.png', '/assets/jobs/spellblade.png'], '職業6種類の画像対応が不正です。')
       await clickButton('開発テスト：Lv.30にする')
       await waitFor("[...document.querySelectorAll('.job-card')].every((card) => !card.classList.contains('is-locked'))", '職業の解放条件を反映できません。')
       const clicked = await evaluate(`(() => { const card = [...document.querySelectorAll('.job-card')].find((node) => node.querySelector('h2')?.textContent === '戦士'); const button = card?.querySelector('button'); if (!button || button.disabled) return false; button.click(); return true; })()`)
@@ -315,6 +345,7 @@ try {
   await clickButton('ステータス')
   await assertScreen('ステータス')
   assert.match(await evaluate("document.body.innerText"), /戦士[\s\S]*Lv\.30[\s\S]*強撃[\s\S]*気絶撃/, 'レベル・職業・装備スキルがステータスへ反映されていません。')
+  assert.equal(await evaluate("document.querySelector('.status-profile .avatar img')?.getAttribute('src')"), '/assets/jobs/warrior.png', '職業変更後の画像がステータスへ反映されていません。')
   await captureScreen('screen-status')
   await clickButton('装備画面へ')
   await assertScreen('装備・所持品')
@@ -343,8 +374,17 @@ try {
     '/assets/arrows/arrow-left-16.png', '/assets/arrows/arrow-left-32.png',
     '/assets/arrows/arrow-up-16.png', '/assets/arrows/arrow-up-32.png',
     '/assets/arrows/arrow-down-16.png', '/assets/arrows/arrow-down-32.png',
-    '/assets/enemies/goblin.svg', '/assets/enemies/boar.svg', '/assets/enemies/slime-king.svg',
-    '/assets/enemies/cyclops-bat.svg', '/assets/enemies/stone-golem.svg', '/assets/enemies/ghost.svg',
+    '/assets/enemies/goblin.png', '/assets/enemies/boar.png', '/assets/enemies/slime_king.png',
+    '/assets/enemies/one_eye_bat.png', '/assets/enemies/stone_golem.png', '/assets/enemies/ghost.png',
+    '/assets/jobs/none.png', '/assets/jobs/warrior.png', '/assets/jobs/mage.png', '/assets/jobs/hunter.png', '/assets/jobs/paladin.png', '/assets/jobs/spellblade.png',
+    '/assets/weapons/sword.png', '/assets/weapons/spear.png', '/assets/weapons/bow.png', '/assets/weapons/wand.png', '/assets/weapons/staff.png',
+    '/assets/armors/heavy_armor.png', '/assets/armors/light_armor.png', '/assets/armors/heavy_clothes.png', '/assets/armors/light_clothes.png',
+  ])
+  await assertTransparentPixelAssets([
+    '/assets/enemies/goblin.png', '/assets/enemies/boar.png', '/assets/enemies/slime_king.png', '/assets/enemies/one_eye_bat.png', '/assets/enemies/stone_golem.png', '/assets/enemies/ghost.png',
+    '/assets/jobs/none.png', '/assets/jobs/warrior.png', '/assets/jobs/mage.png', '/assets/jobs/hunter.png', '/assets/jobs/paladin.png', '/assets/jobs/spellblade.png',
+    '/assets/weapons/sword.png', '/assets/weapons/spear.png', '/assets/weapons/bow.png', '/assets/weapons/wand.png', '/assets/weapons/staff.png',
+    '/assets/armors/heavy_armor.png', '/assets/armors/light_armor.png', '/assets/armors/heavy_clothes.png', '/assets/armors/light_clothes.png',
   ])
   for (const width of [360, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })

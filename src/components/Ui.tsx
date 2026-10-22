@@ -1,8 +1,9 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
+import { assetUrl } from '../assets'
 import { Icon, type IconName } from './Icon'
 
-export function AppShell({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <main className={`app-shell ${className}`}>{children}</main>
+export function AppShell({ children, className = '', ...mainProps }: HTMLAttributes<HTMLElement> & { children: ReactNode }) {
+  return <main className={`app-shell ${className}`} {...mainProps}>{children}</main>
 }
 
 export function ScreenHeader({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack: () => void }) {
@@ -38,7 +39,7 @@ export function ActionButton({ icon, label, detail, className = '', ...buttonPro
         <strong>{label}</strong>
         {detail && <small>{detail}</small>}
       </span>
-      {!buttonProps.disabled && <span className="action-button__chevron" aria-hidden="true"><img src="/assets/arrows/arrow-right-16.png" alt="" /></span>}
+      {!buttonProps.disabled && <span className="action-button__chevron" aria-hidden="true"><img src={assetUrl('assets/arrows/arrow-right-16.png')} alt="" /></span>}
     </button>
   )
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
+import { enemyAssetPaths, enemyFallbackPaths, jobAssetPaths, loadCachedImage } from '../assets'
 import { ENEMY_DEFINITIONS, getWarningLevel, positionKey, type EnemyState } from '../game/combat/combat'
 import { FOREST_MAP, MAP_SIZE, type Position, type TileType } from '../game/forestMap'
+import type { JobId } from '../game/player'
 
 const CANVAS_SIZE = 400
 const TILE_SIZE = CANVAS_SIZE / MAP_SIZE
@@ -39,9 +41,9 @@ function drawHighlights(context: CanvasRenderingContext2D, enemies: EnemyState[]
 function drawEnemy(context: CanvasRenderingContext2D, enemy: EnemyState, image: HTMLImageElement | undefined, selected: boolean) {
   const centerX = (enemy.position.x + .5) * TILE_SIZE; const centerY = (enemy.position.y + .5) * TILE_SIZE
   const size = enemy.isBoss ? TILE_SIZE * 1.5 : TILE_SIZE * .92; const left = centerX - size / 2; const top = centerY - size / 2
-  if (selected) { context.strokeStyle = '#fff'; context.lineWidth = 2; context.strokeRect(enemy.position.x * TILE_SIZE + 1, enemy.position.y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2) }
   if (image?.complete && image.naturalWidth > 0) context.drawImage(image, left, top, size, size)
   else { context.fillStyle = '#d95a5a'; context.fillRect(left + 3, top + 3, size - 6, size - 6) }
+  if (selected) { context.strokeStyle = '#fff'; context.lineWidth = 2; context.strokeRect(enemy.position.x * TILE_SIZE + 1, enemy.position.y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2) }
   const barLeft = enemy.position.x * TILE_SIZE + 2; const barTop = enemy.position.y * TILE_SIZE + TILE_SIZE - 4
   context.fillStyle = '#120b0b'; context.fillRect(barLeft, barTop, TILE_SIZE - 4, 3); context.fillStyle = '#e94c4c'; context.fillRect(barLeft, barTop, (TILE_SIZE - 4) * Math.max(0, enemy.hp / enemy.maxHp), 3)
 }
@@ -59,19 +61,19 @@ function drawMap(context: CanvasRenderingContext2D, player: Position, enemies: E
   if (playerImage?.complete && playerImage.naturalWidth > 0) context.drawImage(playerImage, left + 2, top + 2, TILE_SIZE - 4, TILE_SIZE - 4)
 }
 
-interface DungeonMapCanvasProps { player: Position; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
+interface DungeonMapCanvasProps { player: Position; playerJob: JobId; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
 
-export function DungeonMapCanvas({ player, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
+export function DungeonMapCanvas({ player, playerJob, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const yellowWarnings = enemies.filter((enemy) => enemy.warning && enemy.warning.remaining >= 2).length
   const redWarnings = enemies.filter((enemy) => enemy.warning?.remaining === 1).length
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext('2d'); if (!canvas || !context) return
-    const playerImage = new Image(); const images = new Map<string, HTMLImageElement>(); const redraw = () => drawMap(context, player, enemies, targetCells, selectedEnemyId, images, playerImage)
-    playerImage.addEventListener('load', redraw); playerImage.src = '/assets/icons/player.png'
-    for (const definition of Object.values(ENEMY_DEFINITIONS)) { const image = new Image(); image.addEventListener('load', redraw); image.src = definition.sprite; images.set(definition.kind, image) }
+    const playerImage = loadCachedImage(jobAssetPaths[playerJob]); const images = new Map<string, HTMLImageElement>(); const redraw = () => drawMap(context, player, enemies, targetCells, selectedEnemyId, images, playerImage)
+    playerImage.addEventListener('load', redraw)
+    for (const definition of Object.values(ENEMY_DEFINITIONS)) { const image = loadCachedImage(enemyAssetPaths[definition.kind], enemyFallbackPaths[definition.kind]); image.addEventListener('load', redraw); images.set(definition.kind, image) }
     redraw(); return () => { playerImage.removeEventListener('load', redraw); for (const image of images.values()) image.removeEventListener('load', redraw) }
-  }, [enemies, player, selectedEnemyId, targetCells])
+  }, [enemies, player, playerJob, selectedEnemyId, targetCells])
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect(); const x = Math.floor((event.clientX - bounds.left) * MAP_SIZE / bounds.width); const y = Math.floor((event.clientY - bounds.top) * MAP_SIZE / bounds.height)
     if (x >= 0 && y >= 0 && x < MAP_SIZE && y < MAP_SIZE) onCellClick({ x, y })
