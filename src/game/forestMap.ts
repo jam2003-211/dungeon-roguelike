@@ -1,6 +1,6 @@
 export const MAP_SIZE = 20
 
-export type TileType = 'grass' | 'path' | 'tree' | 'rock' | 'stump' | 'wall'
+export type TileType = 'grass' | 'path' | 'ruinsFloor' | 'castleFloor' | 'tree' | 'rock' | 'stump' | 'wall' | 'pillar' | 'castleWall'
 export type Position = Readonly<{ x: number; y: number }>
 export type ForestMap = ReadonlyArray<ReadonlyArray<TileType>>
 
@@ -44,5 +44,5 @@ export function isInsideMap(position: Position): boolean {
 export function isPassable(map: ForestMap, position: Position): boolean {
   if (!isInsideMap(position)) return false
   const tile = map[position.y]?.[position.x]
-  return tile === 'grass' || tile === 'path'
+  return tile === 'grass' || tile === 'path' || tile === 'ruinsFloor' || tile === 'castleFloor'
 }

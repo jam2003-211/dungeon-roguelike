@@ -13,7 +13,7 @@ const browserPath = browserCandidates.find(existsSync)
 assert.ok(browserPath, 'ChromeまたはEdgeが見つかりません。')
 
 const appUrl = process.env.APP_URL ?? 'http://127.0.0.1:5173/'
-const screenshotDirectory = process.env.SCREENSHOT_DIR
+const screenshotDirectory = process.argv[2] ?? process.env.SCREENSHOT_DIR
 const debuggingPort = 10000 + Math.floor(Math.random() * 40000)
 const profileDirectory = mkdtempSync(join(tmpdir(), 'roguelike-browser-test-'))
 const browser = spawn(browserPath, [
@@ -228,6 +228,59 @@ try {
     await assertScreen(heading)
     await captureScreen(`screen-${heading}`)
     if (heading === 'ダンジョン') {
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-card')].map((card) => [...card.querySelectorAll('.planned-actions button')].map((button) => button.disabled))"), [[false, true], [true, true], [true, true]], '初期解放状態が不正です。')
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-icon img')].map((image) => image.getAttribute('src'))"), ['/assets/icons/forest.png', '/assets/icons/ruins.png', '/assets/icons/castle_dark.png'], 'ダンジョンストックのアイコンが指定画像と一致しません。')
+      await setInputValue('[aria-label="ストック1のダンジョンレベル"]', '1.5')
+      await clickExactButton('生成')
+      assert.match(await evaluate("document.querySelector('[role=alert]').innerText"), /整数/, '不正Lv入力が拒否されません。')
+      await setInputValue('[aria-label="ストック1のダンジョンレベル"]', '1')
+      await clickExactButton('生成')
+      await waitFor("document.querySelector('.stock-card--1').innerText.includes('生成済み')", 'ストック1を生成できません。')
+      assert.match(await evaluate("document.querySelector('.stock-card--1').innerText"), /Lv\.1[\s\S]*総階層[\s\S]*？[\s\S]*得意カテゴリ/, '生成済み情報が不正です。')
+      await clickExactButton('再生成')
+      assert.match(await evaluate("document.querySelector('.dialog-panel').innerText"), /到達記録・クリア記録が失われます/, '再生成確認が表示されません。')
+      await clickButton('キャンセル')
+      assert.equal(await evaluate("document.querySelector('.dialog-panel') === null"), true, '再生成をキャンセルできません。')
+      await clickExactButton('探索開始')
+      await assertExplorationScreen()
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '探索開始時のターンが0ではありません。')
+      assert.equal(await evaluate("document.querySelector('.next-floor-button') === null"), true, '階段以外で次階ボタンが表示されています。')
+      assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.layout.length"), 400, '20×20の生成マップではありません。')
+      const initialLayout = await evaluate("document.querySelector('.dungeon-map').dataset.layout")
+      assert.equal(await evaluate("document.querySelector('.exploration-avatar img')?.getAttribute('src')"), '/assets/jobs/none.png', '探索HUDに現在職業の画像が表示されていません。')
+      for (const label of ['上へ移動', '左へ移動', '右へ移動', '下へ移動']) {
+        if (await evaluate("document.querySelector('.turn-display strong').textContent === '0'")) await clickButton(label)
+      }
+      assert.equal(await evaluate("Number(document.querySelector('.turn-display strong').textContent) > 0"), true, '生成マップ上で有効移動できません。')
+      await clickButton('探索メニューを開く'); await clickButton('ダンジョン情報'); await clickButton('開発テスト：敵へ接近')
+      const combatBefore = await evaluate("({ turn: Number(document.querySelector('.turn-display strong').textContent), enemies: JSON.parse(document.querySelector('.dungeon-map').dataset.enemies) })")
+      await clickButton('攻撃'); await clickMapCell(combatBefore.enemies[0].x, combatBefore.enemies[0].y)
+      const combatAfter = await evaluate("({ turn: Number(document.querySelector('.turn-display strong').textContent), enemies: JSON.parse(document.querySelector('.dungeon-map').dataset.enemies) })")
+      assert.equal(combatAfter.turn, combatBefore.turn + 1, '生成敵への攻撃でターンが進みません。')
+      assert.equal(combatAfter.enemies.length < combatBefore.enemies.length || combatAfter.enemies.find((enemy) => enemy.id === combatBefore.enemies[0].id)?.hp < combatBefore.enemies[0].hp, true, '生成敵へダメージを与えられません。')
+      const turnBeforeFloor = Number(await evaluate("document.querySelector('.turn-display strong').textContent"))
+      const hpBeforeFloor = await evaluate("document.querySelector('.exploration-player > span:nth-of-type(2)').textContent")
+      let safety = 0
+      while (!(await evaluate("document.querySelector('.exploration-place em').textContent === '最終階'"))) {
+        await clickButton('探索メニューを開く'); await clickButton('ダンジョン情報'); await clickButton('開発テスト：階段へ移動')
+        assert.equal(await evaluate("document.querySelector('.next-floor-button') !== null"), true, '階段上で次階ボタンが表示されません。')
+        await clickButton('次の階へ'); safety += 1; assert.ok(safety < 16, '階層移動が終了しません。')
+      }
+      assert.equal(Number(await evaluate("document.querySelector('.turn-display strong').textContent")), turnBeforeFloor, '階層移動ボタンがターンを消費しました。')
+      assert.equal(await evaluate("document.querySelector('.exploration-player > span:nth-of-type(2)').textContent"), hpBeforeFloor, '階層移動でHPが変化しました。')
+      assert.match(await evaluate("document.querySelector('.exploration-place').innerText"), /(\d+)階 \/ \1階[\s\S]*最終階/, '最終階で総階層数が公開されません。')
+      await clickButton('探索メニューを開く'); await clickButton('ダンジョン情報'); await clickButton('開発テスト：階段へ移動')
+      assert.equal(await evaluate("document.querySelector('.next-floor-button').disabled"), true, 'ボス生存中に最終階段を使用できます。')
+      await clickButton('探索メニューを開く'); await clickButton('ダンジョン情報'); await clickButton('開発テスト：ボス撃破'); await clickButton('探索メニューへ戻る'); await clickButton('閉じる')
+      assert.equal(await evaluate("document.querySelector('.next-floor-button').disabled"), false, 'ボス撃破後も最終階段を使用できません。')
+      await clickButton('階段を使ってクリア')
+      await assertScreen('探索結果'); assert.match(await evaluate("document.querySelector('.result-panel').innerText"), /ダンジョンクリア/, '階段使用後にクリア結果へ移動しません。')
+      await captureScreen('04-exploration-result'); await clickButton('町へ戻る'); await assertScreen('町メニュー')
+      await clickButton('ダンジョン'); assert.match(await evaluate("document.querySelector('.stock-card--1').innerText"), /クリア済み[\s\S]*総階層[\s\S]*\d+階[\s\S]*最高到達[\s\S]*\d+階/, 'クリア・到達・総階層記録が反映されません。'); await clickExactButton('探索開始'); await assertExplorationScreen()
+      assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '再探索時にターンが初期化されていません。')
+      assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.layout"), initialLayout, '再探索時に地形が変化しました。')
+      await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await assertScreen('探索結果'); await clickButton('町へ戻る'); await assertScreen('町メニュー')
+      continue
       await assertAllDisabled('.planned-actions button', 6, 'ダンジョン未実装操作')
       assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-icon img')].map((image) => image.getAttribute('src'))"), [
         '/assets/icons/forest.png', '/assets/icons/ruins.png', '/assets/icons/castle_dark.png',
@@ -391,7 +444,7 @@ try {
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${width}px幅で横にはみ出しています。`)
     await clickButton('ダンジョン')
     await assertScreen('ダンジョン')
-    await clickButton('テスト探索')
+    await clickExactButton('探索開始')
     await assertExplorationScreen()
     assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '再探索時にターンが初期化されていません。')
     assert.ok(await evaluate("document.querySelectorAll('.skill-bar--active button').length >= 7"), '装備由来スキルが探索欄へ反映されていません。')
@@ -415,7 +468,7 @@ try {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     writeFileSync(process.env.SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'))
   }
-  console.log('ブラウザE2E: 装備変更・検索・お気に入り保護・アクセサリー2枠、職業解放/変更、ステータス反映、探索中の変更禁止、スキル選択/取消/説明/横スクロール、360/390/430×844の20×20描画、既存戦闘・履歴・ブラウザエラーなしを確認しました。')
+  console.log('ブラウザE2E: 3ストック解放、Lv入力、生成・再生成キャンセル、ランダムマップ移動・戦闘、階層移動、ボス撃破後クリア、再探索初期化、既存装備・職業・スキル、360/390/430×844表示、ブラウザエラーなしを確認しました。')
 } finally {
   socket.close()
   if (browser.exitCode === null) {

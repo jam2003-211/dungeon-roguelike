@@ -112,6 +112,12 @@ h1, h2, p { margin-top: 0; }
 .stock-title h2 { margin: 2px 0 3px; color: #fff; font-size: 1.12rem; }
 .stock-title p { margin: 0; color: var(--muted); font-size: .65rem; }
 .stock-status { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 9px; padding-top: 10px; color: var(--muted); border-top: 1px solid #707277; font-size: .69rem; }
+.stock-status strong { color: #fff; }
+.stock-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 0 0 9px; }
+.stock-details div { display: grid; gap: 2px; padding: 6px; text-align: center; background: rgba(5, 6, 8, .78); border: 1px solid #666; }
+.stock-details dt { color: var(--muted); font-size: .54rem; }.stock-details dd { margin: 0; color: #fff; font-size: .64rem; font-weight: 800; }
+.dungeon-level-input { display: grid; grid-template-columns: 1fr 100px; align-items: center; gap: 8px; margin-bottom: 8px; color: #fff; font-size: .67rem; }
+.dungeon-level-input input { min-width: 0; height: 36px; padding: 5px 8px; color: #fff; background: #08090b; border: 1px solid #fff; }
 .planned-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .planned-actions button, .job-card > button { min-height: 38px; color: #aaa; background: #17181b; border: 1px solid #666; border-radius: 2px; font-size: .68rem; }
 .test-exploration-button { width: 100%; min-height: 42px; margin-top: 8px; color: #fff; background: #1d4228; border: 2px solid #9be293; border-radius: var(--radius); font-weight: 800; cursor: pointer; }
@@ -134,6 +140,8 @@ h1, h2, p { margin-top: 0; }
 .turn-display span { margin-left: 8px; color: #e7c86a; }
 .map-frame { width: min(100%, 400px); aspect-ratio: 1; margin: 0 auto; overflow: hidden; background: #111; border: 2px solid #fff; box-shadow: 3px 3px 0 #000; }
 .dungeon-map { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
+.next-floor-button { width: min(100%, 400px); min-height: 38px; display: block; margin: 6px auto 0; color: #fff; background: #53451c; border: 2px solid var(--gold); font-weight: 800; cursor: pointer; }
+.next-floor-button:disabled { color: #aaa; background: #242424; border-color: #777; }
 .exploration-controls { width: min(100%, 400px); min-height: 128px; display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 7px auto 5px; padding: 0 12px; }
 .d-pad { width: 138px; height: 126px; display: grid; grid-template: repeat(3, 42px) / repeat(3, 46px); }
 .d-pad button { display: grid; place-items: center; padding: 0; background: #171a1e; border: 2px solid #fff; border-radius: 2px; cursor: pointer; touch-action: manipulation; }

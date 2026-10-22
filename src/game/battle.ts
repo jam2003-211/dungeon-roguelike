@@ -8,9 +8,9 @@ export interface BattleState { combat: CombatState; player: PlayerState; cooldow
 const offsets: Record<Direction, Position> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 const POISON_RATE = .05; const BURN_DAMAGE = 3; const LIFESTEAL_RATE = .5
 
-export function createBattleState(player: PlayerState, enemies?: EnemyState[]): BattleState {
+export function createBattleState(player: PlayerState, enemies?: EnemyState[], start: Position = { x: 2, y: 17 }): BattleState {
   const stats = calculateStats(player)
-  return { combat: { position: { x: 2, y: 17 }, turn: 0, playerHp: Math.min(player.currentHp, stats.maxHp), playerMaxHp: stats.maxHp, enemies: enemies ?? [], finished: false }, player: { ...player, currentHp: Math.min(player.currentHp, stats.maxHp) }, cooldowns: {}, guardTurns: 0, levelNotices: [], experienceEarned: 0 }
+  return { combat: { position: { ...start }, turn: 0, playerHp: Math.min(player.currentHp, stats.maxHp), playerMaxHp: stats.maxHp, enemies: enemies ?? [], finished: false }, player: { ...player, currentHp: Math.min(player.currentHp, stats.maxHp) }, cooldowns: {}, guardTurns: 0, levelNotices: [], experienceEarned: 0 }
 }
 function same(a: Position, b: Position) { return a.x === b.x && a.y === b.y }
 function weaponType(player: PlayerState): WeaponType { const weapon = equippedWeapon(player); return weapon?.category === 'weapon' ? weapon.subtype as WeaponType : 'sword' }
@@ -41,8 +41,8 @@ function tickStatuses(state: BattleState): BattleState {
 }
 function decrementCooldowns(cooldowns: BattleState['cooldowns'], used?: SkillId) { const next = { ...cooldowns }; for (const key of Object.keys(next) as SkillId[]) if (key !== used) next[key] = Math.max(0, (next[key] ?? 0) - 1); return next }
 function beginAction(state: BattleState, used?: SkillId): BattleState { return tickStatuses({ ...state, cooldowns: decrementCooldowns(state.cooldowns, used), guardTurns: used === 'guard' ? state.guardTurns : Math.max(0, state.guardTurns - 1) }) }
-function finishAction(prepared: BattleState, combat: CombatState): BattleState {
-  const hpBefore = combat.playerHp; const processed = processEnemyTurn(combat); let hp = processed.playerHp; let guardTurns = prepared.guardTurns
+function finishAction(prepared: BattleState, combat: CombatState, map: ForestMap): BattleState {
+  const hpBefore = combat.playerHp; const processed = processEnemyTurn(combat, map); let hp = processed.playerHp; let guardTurns = prepared.guardTurns
   if (hp < hpBefore && guardTurns > 0) { hp = hpBefore - Math.floor((hpBefore - hp) * .5); guardTurns = 0 }
   const stats = calculateStats(prepared.player); const player = { ...prepared.player, currentHp: Math.min(stats.maxHp, hp) }
   return { ...prepared, player, guardTurns, combat: { ...processed, playerHp: player.currentHp, playerMaxHp: stats.maxHp, finished: player.currentHp <= 0 } }
@@ -51,7 +51,7 @@ function finishAction(prepared: BattleState, combat: CombatState): BattleState {
 export function moveBattlePlayer(state: BattleState, direction: Direction, map: ForestMap = FOREST_MAP): BattleState {
   if (state.combat.finished) return state; const offset = offsets[direction]; const destination = { x: state.combat.position.x + offset.x, y: state.combat.position.y + offset.y }
   if (!isPassable(map, destination) || state.combat.enemies.some((enemy) => same(enemy.position, destination))) return state
-  const prepared = beginAction(state); return finishAction(prepared, { ...prepared.combat, position: destination, turn: prepared.combat.turn + 1 })
+  const prepared = beginAction(state); return finishAction(prepared, { ...prepared.combat, position: destination, turn: prepared.combat.turn + 1 }, map)
 }
 
 function applyStatus(enemy: EnemyState, effect: SpecialEffectId): EnemyState { const statuses = enemy.statuses ?? { poison: 0, burn: 0, slow: 0, stun: 0 }; if (effect === 'poison') return { ...enemy, statuses: { ...statuses, poison: 5 } }; if (effect === 'burn') return { ...enemy, statuses: { ...statuses, burn: 3 } }; if (effect === 'slow') return { ...enemy, statuses: { ...statuses, slow: 3 } }; if (effect === 'stun') return { ...enemy, statuses: { ...statuses, stun: 1 } }; return enemy }
@@ -71,7 +71,7 @@ export function attackWithWeapon(state: BattleState, target: Position, map: Fore
   if (!validAttackTarget(state, target, map)) return state; const stats = calculateStats(state.player); const type = weaponType(state.player); const magic = type === 'shortStaff' || type === 'longStaff'; const damage = Math.max(1, Math.floor(magic ? stats.magic : stats.physical)); const weapon = equippedWeapon(state.player); const effect = weapon?.specialEffect ?? null; const proc = effect !== null && random() < SPECIAL_EFFECT_RATES[weapon?.rarity ?? 'common']
   const prepared = beginAction(state); const ids = new Set(prepared.combat.enemies.filter((enemy) => magic ? getPlayerAttackCells(prepared.player, prepared.combat.position, map).some((cell) => same(cell, enemy.position)) : same(enemy.position, target)).map((enemy) => enemy.id))
   const damaged = damageEnemies(prepared, ids, damage, effect, proc, map)
-  return finishAction(damaged, { ...damaged.combat, turn: damaged.combat.turn + 1 })
+  return finishAction(damaged, { ...damaged.combat, turn: damaged.combat.turn + 1 }, map)
 }
 
 export function getSkillTargetCells(state: BattleState, skillId: SkillId, map: ForestMap = FOREST_MAP): Position[] { const skill = SKILLS[skillId]; const cells: Position[] = []; for (let y = 0; y < 20; y += 1) for (let x = 0; x < 20; x += 1) { const cell = { x, y }; const distance = manhattanDistance(state.combat.position, cell); if (!isPassable(map, cell) || distance < 1 || distance > skill.range) continue; if (skill.target === 'line' || skill.target === 'dash') { if (x !== state.combat.position.x && y !== state.combat.position.y) continue } if (['single', 'line', 'area'].includes(skill.target) && !hasLineOfSight(map, state.combat.position, cell)) continue; cells.push(cell) } return cells }
@@ -93,5 +93,5 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
     if (skill.multiplier) next = damageEnemies(next, new Set(targets.map((enemy) => enemy.id)), Math.max(1, Math.floor((skill.attackType === 'magic' ? stats.magic : stats.physical) * skill.multiplier * skillPower)), null, false, map)
     if (skillId === 'poisonStrike' || skillId === 'slowSpell' || skillId === 'stunStrike') { const effect = skillId === 'poisonStrike' ? 'poison' : skillId === 'slowSpell' ? 'slow' : 'stun'; const ids = new Set(targets.map((enemy) => enemy.id)); next = { ...next, combat: { ...next.combat, enemies: next.combat.enemies.map((enemy) => ids.has(enemy.id) ? applyStatus(enemy, effect) : enemy) } } }
   }
-  return finishAction(next, { ...next.combat, turn: next.combat.turn + 1 })
+  return finishAction(next, { ...next.combat, turn: next.combat.turn + 1 }, map)
 }
