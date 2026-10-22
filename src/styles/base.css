@@ -38,7 +38,9 @@ h1, h2, p { margin-top: 0; }
 
 .eyebrow { margin-bottom: 4px; color: var(--gold); font: 800 .62rem/1.2 ui-monospace, monospace; letter-spacing: .12em; }
 .icon { display: inline-grid; place-items: center; flex: 0 0 auto; line-height: 1; image-rendering: pixelated; }
-.icon svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
+.icon svg, .icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.icon svg { shape-rendering: crispEdges; }
+.icon img { image-rendering: pixelated; }
 .icon--small { width: 18px; height: 18px; }
 .icon--medium { width: 24px; height: 24px; }
 .icon--large { width: 36px; height: 36px; }
@@ -70,7 +72,7 @@ h1, h2, p { margin-top: 0; }
 .version-label { position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); margin: 0; color: #777; font: .56rem ui-monospace, monospace; letter-spacing: .14em; }
 
 /* 町 */
-.town-screen { isolation: isolate; background: #283b2a url('/town-pixel-bg.svg') center top / cover fixed no-repeat; }
+.town-screen { isolation: isolate; background: #283b2a url('/assets/backgrounds/town.png') center center / cover no-repeat; }
 .town-screen::before { content: ""; position: absolute; z-index: -1; inset: 0; min-height: 100%; background: rgba(5, 8, 7, .48); }
 .town-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 12px; margin-bottom: 10px; background: var(--panel); border: 2px solid var(--border); }
 .town-header p:last-child { margin: 5px 0 0; color: var(--muted); font-size: .77rem; }
@@ -91,14 +93,17 @@ h1, h2, p { margin-top: 0; }
 .action-button__copy { display: grid; gap: 2px; }
 .action-button__copy strong { font-size: .9rem; }
 .action-button__copy small { color: var(--muted); font-size: .66rem; }
-.action-button__chevron { color: #fff; font-size: 1.45rem; }
+.action-button__chevron { width: 16px; height: 16px; display: grid; place-items: center; }
+.action-button__chevron img { display: block; width: 16px; height: 16px; image-rendering: pixelated; }
 .action-button:focus-visible, .action-button:active { background: var(--selected); }
 .action-button:disabled { cursor: not-allowed; opacity: .52; filter: grayscale(.75); border-color: #999; }
 
 /* ダンジョン */
 .stock-list { display: grid; gap: 11px; }
-.stock-card { overflow: hidden; padding: 13px; position: relative; }
-.stock-card--1 { --theme: #69cf76; }.stock-card--2 { --theme: #d6ad67; }.stock-card--3 { --theme: #a794e8; }
+.stock-card { overflow: hidden; padding: 13px; position: relative; background-position: center; background-size: cover; }
+.stock-card--1 { --theme: #69cf76; background-image: linear-gradient(rgba(5, 6, 8, .86), rgba(5, 6, 8, .94)), url('/assets/backgrounds/forest.png'); }
+.stock-card--2 { --theme: #d6ad67; background-image: linear-gradient(rgba(5, 6, 8, .86), rgba(5, 6, 8, .94)), url('/assets/backgrounds/ruins.png'); }
+.stock-card--3 { --theme: #a794e8; background-image: linear-gradient(rgba(5, 6, 8, .86), rgba(5, 6, 8, .94)), url('/assets/backgrounds/castle.png'); }
 .stock-card.is-locked { opacity: .55; filter: grayscale(.75); }
 .stock-card__top { display: grid; grid-template-columns: 54px 1fr auto; gap: 11px; align-items: center; }
 .stock-icon { width: 54px; height: 54px; display: grid; place-items: center; background: #15171a; border: 2px solid var(--theme); border-radius: 2px; }

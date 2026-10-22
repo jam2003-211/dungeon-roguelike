@@ -10,7 +10,7 @@ export function TownScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => v
         <div className="level-chip"><small>PLAYER</small><strong>Lv.1</strong></div>
       </header>
       <Panel className="player-summary">
-        <div className="avatar"><Icon name="wanderer" size="large" /></div>
+        <div className="avatar"><Icon name="player" size="large" /></div>
         <div><strong>見習い冒険者</strong><span>無職</span></div>
         <div className="hp-summary"><small>HP</small><strong>100 / 100</strong></div>
       </Panel>
@@ -21,7 +21,7 @@ export function TownScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => v
         <ActionButton icon="jobs" label="職業変更" detail="職業の特徴と解放条件" onClick={() => onNavigate('jobs')} />
         <ActionButton icon="settings" label="設定" detail="音量を一時的に調整" onClick={() => onNavigate('settings')} />
         <ActionButton icon="save" label="セーブ" detail="今後実装予定・現在は保存されません" disabled />
-        <ActionButton icon="back" label="タイトルへ戻る" detail="タイトル画面を表示" onClick={() => onNavigate('title')} />
+        <ActionButton icon="return" label="タイトルへ戻る" detail="タイトル画面を表示" onClick={() => onNavigate('title')} />
       </nav>
     </AppShell>
   )

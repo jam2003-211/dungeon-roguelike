@@ -7,7 +7,7 @@ export function StatusScreen({ onBack, onOpenEquipment }: { onBack: () => void; 
     <AppShell>
       <ScreenHeader title="ステータス" subtitle="プレイヤー情報" onBack={onBack} />
       <Panel className="status-profile">
-        <div className="avatar avatar--large"><Icon name="wanderer" size="large" /></div>
+        <div className="avatar avatar--large"><Icon name="player" size="large" /></div>
         <div><p className="eyebrow">CURRENT JOB</p><h2>{player.job}</h2><span>Lv.{player.level} 見習い冒険者</span></div>
       </Panel>
       <div className="stat-grid">

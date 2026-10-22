@@ -38,7 +38,7 @@ export function ActionButton({ icon, label, detail, className = '', ...buttonPro
         <strong>{label}</strong>
         {detail && <small>{detail}</small>}
       </span>
-      {!buttonProps.disabled && <span className="action-button__chevron" aria-hidden="true">›</span>}
+      {!buttonProps.disabled && <span className="action-button__chevron" aria-hidden="true"><img src="/assets/arrows/arrow-right-16.png" alt="" /></span>}
     </button>
   )
 }

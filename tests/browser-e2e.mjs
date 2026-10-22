@@ -115,6 +115,19 @@ async function assertAllDisabled(selector, expectedCount, message) {
   assert.equal(result.allDisabled, true, `${message}に操作可能なボタンがあります。`)
 }
 
+async function assertImageAssets(paths) {
+  const results = await evaluate(`Promise.all(${JSON.stringify(paths)}.map((path) => new Promise((resolve) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve({ path, width: image.naturalWidth, height: image.naturalHeight }));
+    image.addEventListener('error', () => resolve({ path, error: true }));
+    image.src = path;
+  })))`)
+  for (const result of results) {
+    assert.equal(result.error, undefined, `${result.path}を読み込めません。`)
+    assert.ok(result.width > 0 && result.height > 0, `${result.path}の画像サイズが不正です。`)
+  }
+}
+
 async function captureScreen(name) {
   if (!screenshotDirectory) return
   mkdirSync(screenshotDirectory, { recursive: true })
@@ -133,6 +146,12 @@ try {
 
   await clickButton('ゲーム開始')
   await assertScreen('町メニュー')
+  assert.match(await evaluate("getComputedStyle(document.querySelector('.town-screen')).backgroundImage"), /assets\/backgrounds\/town\.png/, '町背景が指定画像ではありません。')
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.town-menu .action-button__icon img')].map((image) => image.getAttribute('src'))"), [
+    '/assets/icons/dungeon.png', '/assets/icons/equipment.png', '/assets/icons/status.png', '/assets/icons/jobs.png',
+    '/assets/icons/settings.png', '/assets/icons/save.png', '/assets/icons/return.png',
+  ], '町メニューのアイコンが指定画像と一致しません。')
+  assert.equal(await evaluate("[...document.querySelectorAll('.town-menu .action-button__chevron img')].every((image) => image.getAttribute('src') === '/assets/arrows/arrow-right-16.png' && image.complete && image.naturalWidth === 16)"), true, '町メニューの右矢印が正しく表示されていません。')
   await captureScreen('02-town')
 
   for (const [button, heading] of [
@@ -141,7 +160,13 @@ try {
     await clickButton(button)
     await assertScreen(heading)
     await captureScreen(`screen-${heading}`)
-    if (heading === 'ダンジョン') await assertAllDisabled('.planned-actions button', 6, 'ダンジョン未実装操作')
+    if (heading === 'ダンジョン') {
+      await assertAllDisabled('.planned-actions button', 6, 'ダンジョン未実装操作')
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-icon img')].map((image) => image.getAttribute('src'))"), [
+        '/assets/icons/forest.png', '/assets/icons/ruins.png', '/assets/icons/castle_dark.png',
+      ], 'ダンジョンストックのアイコンが指定画像と一致しません。')
+      assert.equal(await evaluate("[...document.querySelectorAll('.stock-card')].every((card, index) => getComputedStyle(card).backgroundImage.includes(['/assets/backgrounds/forest.png', '/assets/backgrounds/ruins.png', '/assets/backgrounds/castle.png'][index]))"), true, 'ストックカードの背景が指定画像と一致しません。')
+    }
     if (heading === '職業変更') await assertAllDisabled('.job-card > button', 6, '職業変更操作')
     await clickButton('前の画面へ戻る')
     await assertScreen('町メニュー')
@@ -172,9 +197,16 @@ try {
   await assertScreen('町メニュー')
 
   assert.equal(await evaluate(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('セーブ'))?.disabled`), true, 'セーブが有効になっています。')
+  await assertImageAssets([
+    '/assets/arrows/arrow-right-16.png', '/assets/arrows/arrow-right-32.png',
+    '/assets/arrows/arrow-left-16.png', '/assets/arrows/arrow-left-32.png',
+    '/assets/arrows/arrow-up-16.png', '/assets/arrows/arrow-up-32.png',
+    '/assets/arrows/arrow-down-16.png', '/assets/arrows/arrow-down-32.png',
+  ])
   for (const width of [360, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, `${width}px幅で横にはみ出しています。`)
+    await captureScreen(`town-${width}x844`)
   }
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {

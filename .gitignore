@@ -11,3 +11,7 @@ Thumbs.db
 .vscode/
 .idea/
 
+# ユーザー提供素材の原本（組み込み用コピーは public/assets/ で管理）
+/background/
+/icons/
+
