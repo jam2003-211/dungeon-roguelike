@@ -141,7 +141,7 @@ async function assertMapAppearance(theme) {
   })()`)
   assert.ok(appearance, `${theme}で床タイルを取得できません。`)
   assert.ok(appearance.background.includes(`/assets/backgrounds/${theme}.png`), `${theme}背景の割当が違います。`)
-  assert.ok(appearance.tile[0] <= 17 && appearance.tile[1] <= 17 && appearance.tile[2] <= 17 && appearance.tile[3] >= 216, `${theme}床が黒い半透明の無地ではありません: ${appearance.tile}`)
+  assert.ok(appearance.tile[0] <= 17 && appearance.tile[1] <= 17 && appearance.tile[2] <= 17 && appearance.tile[3] >= 150 && appearance.tile[3] <= 155, `${theme}床が黒い半透明の無地ではありません: ${appearance.tile}`)
   assert.ok(appearance.grid[0] > appearance.tile[0] + 25, `${theme}のマス目が見えません: tile=${appearance.tile}, grid=${appearance.grid}`)
 }
 

@@ -15,7 +15,7 @@ type DungeonTileKey = keyof typeof dungeonTileAssetPaths
 function drawTile(context: CanvasRenderingContext2D, x: number, y: number, tile: TileType) {
   const left = x * TILE_SIZE; const top = y * TILE_SIZE
   const passable = ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)
-  context.globalAlpha = passable ? .85 : .94
+  context.globalAlpha = passable ? .6 : .94
   context.fillStyle = passable ? '#101010' : '#262626'
   context.fillRect(left, top, TILE_SIZE, TILE_SIZE)
   context.globalAlpha = 1
