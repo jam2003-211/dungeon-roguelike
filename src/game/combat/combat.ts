@@ -220,7 +220,7 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
       continue
     }
     if (enemy.warning) {
-      if (getEnemyWarningLevel(enemy) === 'yellow') enemy = { ...enemy, warning: { ...enemy.warning, remaining: enemy.warning.remaining - 1 } }
+      if (enemy.warning.remaining > 1) enemy = { ...enemy, warning: { ...enemy.warning, remaining: enemy.warning.remaining - 1 } }
       else {
         if (enemy.warning.cells.some((cell) => samePosition(cell, state.position))) playerHp = Math.max(0, playerHp - enemy.attack)
         enemy = { ...enemy, warning: null }
@@ -269,18 +269,16 @@ export function attackCell(state: CombatState, target: Position, map: ForestMap 
   return processEnemyTurn({ ...state, enemies, turn: state.turn + 1 }, map)
 }
 
-export function getWarningLevel(enemies: EnemyState[], position: Position): 'red' | 'yellow' | null {
-  let level: 'red' | 'yellow' | null = null
+export function getWarningLevel(enemies: EnemyState[], position: Position): 'red' | null {
   for (const enemy of enemies) {
     if (enemy.hp <= 0 || !enemy.warning?.cells.some((cell) => samePosition(cell, position))) continue
     if (getEnemyWarningLevel(enemy) === 'red') return 'red'
-    level = 'yellow'
   }
-  return level
+  return null
 }
 
-// 次の有効プレイヤー行動後に攻撃する敵だけ赤。気絶中は準備が進まないため黄。
-export function getEnemyWarningLevel(enemy: EnemyState): 'red' | 'yellow' | null {
+// 次の有効プレイヤー行動後に攻撃する敵だけ赤。準備中や気絶中は表示しない。
+export function getEnemyWarningLevel(enemy: EnemyState): 'red' | null {
   if (enemy.hp <= 0 || !enemy.warning) return null
-  return enemy.warning.remaining <= 1 && (enemy.statuses?.stun ?? 0) === 0 ? 'red' : 'yellow'
+  return enemy.warning.remaining <= 1 && (enemy.statuses?.stun ?? 0) === 0 ? 'red' : null
 }

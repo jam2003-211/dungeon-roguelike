@@ -9,12 +9,12 @@ const { combatVisuals } = await loadGameModule('game/combatVisuals')
 const { SaveQueue } = await loadGameModule('persistence/saveQueue')
 function random(seed) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 } }
 
-test('新生成の森・遺跡・城は全マスが床で、敵数・到達性・ボスを維持する', () => {
+test('新生成の森・遺跡・城は小部屋と通路を持ち、敵数・到達性・ボスを維持する', () => {
   for (const theme of ['forest', 'ruins', 'castle']) for (let seed = 1; seed <= 12; seed++) {
     const generated = dungeon.createDungeon(20, theme, random(seed))
     assert.equal(dungeon.validateDungeon(generated), true)
     for (const floor of generated.floors) {
-      assert.ok(floor.map.flat().every(tile => ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)))
+      assert.ok(floor.map.flat().some(tile => !['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)))
       const final = floor.floor === generated.totalFloors
       assert.ok(final ? floor.enemies.length >= 4 && floor.enemies.length <= 6 : floor.enemies.length >= 6 && floor.enemies.length <= 9)
       assert.ok(dungeon.reachableDistances(floor.map, floor.start).has(`${floor.stairs.x},${floor.stairs.y}`))
@@ -26,6 +26,10 @@ test('新生成の森・遺跡・城は全マスが床で、敵数・到達性�
 test('旧生成済みの障害物付き地形と敵数も検証でき、変更されない', () => {
   const generated = dungeon.createDungeon(1, 'forest', () => 0)
   const floor = generated.floors[0]
+  floor.map.forEach(row => row.fill('grass'))
+  generated.enemyKinds = generated.enemyKinds.slice(0, 3)
+  generated.bossKind = generated.enemyKinds[0]
+  floor.enemies.forEach((enemy, index) => { enemy.kind = enemy.isBoss ? generated.bossKind : generated.enemyKinds[index % 3] })
   const occupied = new Set([floor.start, floor.stairs, ...floor.enemies.map(enemy => enemy.position)].map(position => `${position.x},${position.y}`))
   let count = 0
   for (let y = 10; y < 20 && count < 40; y++) for (let x = 10; x < 20 && count < 40; x++) {

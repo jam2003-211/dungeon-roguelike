@@ -54,6 +54,10 @@ const ALL_ENEMIES: EnemyKind[] = ['goblin', 'boar', 'slimeKing', 'cyclopsBat', '
 const CATEGORIES: EquipmentCategory[] = ['weapon', 'armor', 'accessory']
 const START: Position = { x: 2, y: 17 }
 const directions: Position[] = [{ x: 0, y: -1 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }]
+const ROOM_GRID_SIZE = 3
+const ROOM_SLOT_SIZE = 6
+const MIN_ROOM_SIZE = 3
+const MAX_ROOM_SIZE = 5
 
 export function createDungeonStocks(): DungeonStock[] {
   return [
@@ -98,15 +102,34 @@ export function reachableDistances(map: ForestMap, start: Position): Map<string,
 
 function createMap(theme: DungeonTheme, random: () => number): ForestMap {
   const definition = DUNGEON_THEMES[theme]
-  const map: TileType[][] = Array.from({ length: MAP_SIZE }, () => Array<TileType>(MAP_SIZE).fill(definition.ground))
-  const obstacleCount = 0
-  // 左下から右上へ最低限の通路を先に保護し、再試行上限に依存せず到達可能性を保証する。
-  const protectedPath = new Set<string>()
-  for (let y = 2; y <= START.y; y += 1) protectedPath.add(key({ x: START.x, y }))
-  for (let x = START.x; x <= 17; x += 1) protectedPath.add(key({ x, y: 2 }))
-  const candidates = shuffled(Array.from({ length: MAP_SIZE * MAP_SIZE }, (_, index) => ({ x: index % MAP_SIZE, y: Math.floor(index / MAP_SIZE) })).filter((position) => !protectedPath.has(key(position))), random)
-  for (const position of candidates.slice(0, obstacleCount)) map[position.y][position.x] = definition.obstacles[integer(random, 0, definition.obstacles.length - 1)]
-  if (theme === 'forest') for (const position of protectedPath) { const [x, y] = position.split(',').map(Number); map[y][x] = 'path' }
+  const map: TileType[][] = Array.from({ length: MAP_SIZE }, () => Array.from({ length: MAP_SIZE }, () => definition.obstacles[integer(random, 0, definition.obstacles.length - 1)]))
+  const centers: Position[][] = []
+  const carve = (x: number, y: number, corridor = false) => { map[y][x] = corridor && theme === 'forest' ? 'path' : definition.ground }
+  const connect = (from: Position, to: Position) => {
+    const corner = random() < .5 ? { x: to.x, y: from.y } : { x: from.x, y: to.y }
+    for (const [start, end] of [[from, corner], [corner, to]]) {
+      const dx = Math.sign(end.x - start.x); const dy = Math.sign(end.y - start.y)
+      for (let x = start.x, y = start.y; ; x += dx, y += dy) {
+        carve(x, y, true)
+        if (x === end.x && y === end.y) break
+      }
+    }
+  }
+  for (let row = 0; row < ROOM_GRID_SIZE; row += 1) {
+    centers[row] = []
+    for (let column = 0; column < ROOM_GRID_SIZE; column += 1) {
+      const width = integer(random, MIN_ROOM_SIZE, MAX_ROOM_SIZE)
+      const height = integer(random, MIN_ROOM_SIZE, MAX_ROOM_SIZE)
+      const left = row === 2 && column === 0 ? 1 : column * ROOM_SLOT_SIZE + 1 + integer(random, 0, ROOM_SLOT_SIZE - width)
+      const top = row === 2 && column === 0 ? MAP_SIZE - 1 - height : row * ROOM_SLOT_SIZE + 1 + integer(random, 0, ROOM_SLOT_SIZE - height)
+      for (let y = top; y < top + height; y += 1) for (let x = left; x < left + width; x += 1) carve(x, y)
+      centers[row][column] = { x: left + Math.floor(width / 2), y: top + Math.floor(height / 2) }
+    }
+  }
+  for (let row = 0; row < ROOM_GRID_SIZE; row += 1) for (let column = 0; column < ROOM_GRID_SIZE; column += 1) {
+    if (column > 0) connect(centers[row][column - 1], centers[row][column])
+    if (row > 0) connect(centers[row - 1][column], centers[row][column])
+  }
   return map
 }
 
@@ -124,18 +147,20 @@ function createFloor(theme: DungeonTheme, floor: number, totalFloors: number, le
     const occupied = new Set([key(START), key(stairs)])
     const isFinal = floor === totalFloors
     const normalCount = isFinal ? integer(random, 3, 5) : integer(random, 6, 9)
-    const spawnCandidates = shuffled([...distances.entries()].filter(([, distance]) => distance >= 6).map(([position]) => { const [x, y] = position.split(',').map(Number); return { x, y } }).filter((position) => !occupied.has(key(position))), random)
+    const spawnCandidates = shuffled([...distances.entries()].filter(([, distance]) => distance >= 6).map(([position]) => { const [x, y] = position.split(',').map(Number); return { x, y } }).filter((position) => !occupied.has(key(position)) && Math.abs(position.x - stairs.x) + Math.abs(position.y - stairs.y) > 1), random)
     if (spawnCandidates.length < normalCount + (isFinal ? 1 : 0)) continue
     const enemies: EnemySpawn[] = []
     for (let index = 0; index < normalCount; index += 1) {
-      const candidateIndex = spawnCandidates.findIndex((position) => enemies.every((enemy) => Math.abs(enemy.position.x - position.x) + Math.abs(enemy.position.y - position.y) >= 2))
+      const candidateIndex = spawnCandidates.findIndex((position) => enemies.every((enemy) => Math.abs(enemy.position.x - position.x) + Math.abs(enemy.position.y - position.y) >= 3))
       if (candidateIndex < 0) break
       const [position] = spawnCandidates.splice(candidateIndex, 1); occupied.add(key(position))
       enemies.push({ id: `f${floor}-enemy-${index + 1}`, kind: pool[integer(random, 0, pool.length - 1)], level: chooseLevel(level, random), position, isBoss: false })
     }
     if (enemies.length !== normalCount) continue
     if (isFinal) {
-      const position = spawnCandidates.shift()!; occupied.add(key(position))
+      const bossIndex = spawnCandidates.findIndex((position) => enemies.every((enemy) => Math.abs(enemy.position.x - position.x) + Math.abs(enemy.position.y - position.y) >= 3))
+      if (bossIndex < 0) continue
+      const [position] = spawnCandidates.splice(bossIndex, 1); occupied.add(key(position))
       enemies.push({ id: `f${floor}-boss`, kind: bossKind, level, position, isBoss: true })
     }
     const chestCandidate = isFinal ? null : far.find((position) => !occupied.has(key(position))) ?? null
@@ -148,7 +173,7 @@ function createFloor(theme: DungeonTheme, floor: number, totalFloors: number, le
 export function createDungeon(level: number, theme: DungeonTheme, random: () => number = Math.random): GeneratedDungeon {
   if (!Number.isSafeInteger(level) || level < 1 || level > MAX_DUNGEON_LEVEL) throw new Error('ダンジョンLvが不正です。')
   const totalFloors = integer(random, 1, 15)
-  const enemyKinds = shuffled(ALL_ENEMIES, random).slice(0, integer(random, 3, 4))
+  const enemyKinds = shuffled(ALL_ENEMIES, random)
   const bossKind = enemyKinds[integer(random, 0, enemyKinds.length - 1)]
   const featuredCategory = CATEGORIES[integer(random, 0, CATEGORIES.length - 1)]
   const floors = Array.from({ length: totalFloors }, (_, index) => createFloor(theme, index + 1, totalFloors, level, enemyKinds, bossKind, random))
@@ -160,16 +185,19 @@ export function createDungeon(level: number, theme: DungeonTheme, random: () => 
 }
 
 export function validateDungeon(dungeon: GeneratedDungeon): boolean {
-  if (dungeon.version !== 1 || dungeon.floors.length !== dungeon.totalFloors || dungeon.totalFloors < 1 || dungeon.totalFloors > 15 || dungeon.enemyKinds.length < 3 || dungeon.enemyKinds.length > 4 || !dungeon.enemyKinds.includes(dungeon.bossKind)) return false
+  if (dungeon.version !== 1 || dungeon.floors.length !== dungeon.totalFloors || dungeon.totalFloors < 1 || dungeon.totalFloors > 15 || dungeon.enemyKinds.length < 3 || dungeon.enemyKinds.length > ALL_ENEMIES.length || new Set(dungeon.enemyKinds).size !== dungeon.enemyKinds.length || dungeon.enemyKinds.some((kind) => !ALL_ENEMIES.includes(kind)) || !dungeon.enemyKinds.includes(dungeon.bossKind)) return false
   return dungeon.floors.every((floor, index) => {
     if (floor.floor !== index + 1 || floor.map.length !== MAP_SIZE || floor.map.some((row) => row.length !== MAP_SIZE)) return false
     const distances = reachableDistances(floor.map, floor.start); const positions = [floor.start, floor.stairs, ...floor.enemies.map((enemy) => enemy.position)]
     if (!isPassable(floor.map, floor.start) || !isPassable(floor.map, floor.stairs) || !distances.has(key(floor.stairs)) || new Set(positions.map(key)).size !== positions.length) return false
     const obstacles = floor.map.flat().filter((tile) => !['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)).length
     const openFloor = obstacles === 0
-    if (!openFloor && (obstacles < 40 || obstacles > 60)) return false
+    const legacyObstacles = obstacles >= 40 && obstacles <= 60
+    const roomObstacles = obstacles >= 120 && obstacles <= 280
+    if (!openFloor && !legacyObstacles && !roomObstacles) return false
+    if (roomObstacles && distances.size !== MAP_SIZE * MAP_SIZE - obstacles) return false
     const final = floor.floor === dungeon.totalFloors; const bosses = floor.enemies.filter((enemy) => enemy.isBoss)
-    if (final ? bosses.length !== 1 || bosses[0].kind !== dungeon.bossKind || bosses[0].level !== dungeon.level || floor.enemies.length < (openFloor ? 4 : 3) || floor.enemies.length > (openFloor ? 6 : 5) : bosses.length !== 0 || floor.enemies.length < (openFloor ? 6 : 5) || floor.enemies.length > (openFloor ? 9 : 8)) return false
+    if (final ? bosses.length !== 1 || bosses[0].kind !== dungeon.bossKind || bosses[0].level !== dungeon.level || floor.enemies.length < (legacyObstacles ? 3 : 4) || floor.enemies.length > (legacyObstacles ? 5 : 6) : bosses.length !== 0 || floor.enemies.length < (legacyObstacles ? 5 : 6) || floor.enemies.length > (legacyObstacles ? 8 : 9)) return false
     if (!final && (!floor.chestCandidate || !isPassable(floor.map, floor.chestCandidate) || (distances.get(key(floor.chestCandidate)) ?? 0) < 10 || positions.some((position) => key(position) === key(floor.chestCandidate!)))) return false
     return floor.enemies.every((enemy) => dungeon.enemyKinds.includes(enemy.kind) && isPassable(floor.map, enemy.position) && enemy.level >= 1 && Math.abs(enemy.level - dungeon.level) <= 5)
   })

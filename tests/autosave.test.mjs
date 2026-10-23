@@ -105,6 +105,17 @@ test('気絶からの回復猶予も探索再開時に保持する', () => {
   assert.equal(restored(f).combat.enemies[0].statuses.stunRecovery, 1)
 })
 
+test('探索再開後も攻撃直前の赤警告と準備ターンが一致する', () => {
+  const f = fixture()
+  f.state.combat.enemies[0].statuses.stun = 0
+  const ready = restored(f)
+  assert.equal(combat.getEnemyWarningLevel(ready.combat.enemies[0]), 'red')
+  assert.equal(ready.combat.enemies[0].warning.remaining, 1)
+  assert.equal(ready.combat.turn, f.state.combat.turn)
+  f.state.combat.enemies[0].warning.remaining = 2
+  assert.equal(combat.getEnemyWarningLevel(restored(f).combat.enemies[0]), null)
+})
+
 for (const [name, select] of [
   ['現在階', (data) => data.run.floor], ['プレイヤー座標', (data) => data.run.battle.combat.position],
   ['現在HP', (data) => data.player.currentHp], ['ターン数', (data) => data.run.battle.combat.turn],

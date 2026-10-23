@@ -48,26 +48,44 @@ test('階層数1・2・15の境界と20×20マップを生成する', () => {
   }
 })
 
-test('100回の生成で障害物なし・到達可能性・配置・敵数・宝箱候補を保証する', () => {
+test('100回の小部屋生成で全敵種・到達可能性・配置・敵数・宝箱候補を保証する', () => {
+  const appearedKinds = new Set()
   for (let seed = 1; seed <= 100; seed += 1) {
     const generated = dungeon.createDungeon(12, ['forest', 'ruins', 'castle'][seed % 3], seeded(seed))
     assert.ok(generated.totalFloors >= 1 && generated.totalFloors <= 15)
-    assert.ok(generated.enemyKinds.length >= 3 && generated.enemyKinds.length <= 4)
+    assert.equal(generated.enemyKinds.length, 6)
+    assert.equal(new Set(generated.enemyKinds).size, 6)
     assert.ok(generated.enemyKinds.includes(generated.bossKind)); assert.equal(dungeon.validateDungeon(generated), true)
     for (const floor of generated.floors) {
       const distances = dungeon.reachableDistances(floor.map, floor.start)
       assert.ok(distances.has(positionKey(floor.stairs)))
       const obstacles = floor.map.flat().filter((tile) => !['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)).length
-      assert.equal(obstacles, 0)
+      assert.ok(obstacles >= 120 && obstacles <= 280)
+      assert.equal(distances.size, 400 - obstacles)
+      for (let row = 0; row < 3; row += 1) for (let column = 0; column < 3; column += 1) {
+        const left = column * 6 + 1; const top = row * 6 + 1
+        const hasRoom = Array.from({ length: 4 }, (_, dy) => Array.from({ length: 4 }, (_, dx) =>
+          Array.from({ length: 3 }, (_, iy) => Array.from({ length: 3 }, (_, ix) =>
+            ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(floor.map[top + dy + iy][left + dx + ix])).every(Boolean)).every(Boolean)).some(Boolean)).some(Boolean)
+        assert.ok(hasRoom, `seed ${seed}: room ${row},${column}`)
+      }
       const all = [floor.start, floor.stairs, ...floor.enemies.map((enemy) => enemy.position)]; assert.equal(new Set(all.map(positionKey)).size, all.length)
+      for (let i = 0; i < floor.enemies.length; i += 1) for (let j = i + 1; j < floor.enemies.length; j += 1) {
+        const a = floor.enemies[i].position; const b = floor.enemies[j].position
+        assert.ok(Math.abs(a.x - b.x) + Math.abs(a.y - b.y) >= 3)
+      }
+      assert.ok(floor.enemies.every((enemy) => Math.abs(enemy.position.x - floor.stairs.x) + Math.abs(enemy.position.y - floor.stairs.y) > 1))
       const final = floor.floor === generated.totalFloors; const bosses = floor.enemies.filter((enemy) => enemy.isBoss)
       assert.ok(final ? floor.enemies.length >= 4 && floor.enemies.length <= 6 : floor.enemies.length >= 6 && floor.enemies.length <= 9)
       assert.equal(bosses.length, final ? 1 : 0)
       assert.ok(floor.enemies.every((enemy) => generated.enemyKinds.includes(enemy.kind) && enemy.level >= 1 && Math.abs(enemy.level - generated.level) <= 5))
+      floor.enemies.forEach((enemy) => appearedKinds.add(enemy.kind))
+      assert.ok(floor.enemies.every((enemy) => distances.has(positionKey(enemy.position))))
       if (!final) { assert.ok(floor.chestCandidate); assert.ok((distances.get(positionKey(floor.chestCandidate)) ?? 0) >= 10); assert.ok(!all.some((position) => positionKey(position) === positionKey(floor.chestCandidate))) }
       else assert.equal(floor.chestCandidate, null)
     }
   }
+  assert.equal(appearedKinds.size, 6)
 })
 
 test('ボスは選択敵種・指定Lv・既存倍率を使用する', () => {

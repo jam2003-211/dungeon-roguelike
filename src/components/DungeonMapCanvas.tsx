@@ -32,7 +32,7 @@ function drawHighlights(context: CanvasRenderingContext2D, enemies: EnemyState[]
     const warning = getWarningLevel(enemies, position)
     // 地形→グリッド→青枠／予告の塗り→階段・宝箱・敵・プレイヤー。
     if (warning) {
-      context.fillStyle = warning === 'red' ? 'rgba(245, 40, 40, .45)' : 'rgba(245, 210, 40, .38)'
+      context.fillStyle = 'rgba(245, 40, 40, .45)'
       context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2)
     }
     if (targets.has(positionKey(position))) {
@@ -95,7 +95,6 @@ interface DungeonMapCanvasProps { visualSeed: number; chest: LootChest | null; m
 export function DungeonMapCanvas({ visualSeed, chest, map, stairs, themeName, floor, player, playerJob, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const theme: DungeonTheme = map.flat().includes('ruinsFloor') ? 'ruins' : map.flat().includes('castleFloor') ? 'castle' : 'forest'
-  const yellowWarnings = enemies.filter((enemy) => getEnemyWarningLevel(enemy) === 'yellow').length
   const redWarnings = enemies.filter((enemy) => getEnemyWarningLevel(enemy) === 'red').length
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext('2d'); if (!canvas || !context) return
@@ -125,5 +124,5 @@ export function DungeonMapCanvas({ visualSeed, chest, map, stairs, themeName, fl
     const position = viewToMap(player, Math.floor((event.clientX - bounds.left) * VIEW_SIZE / bounds.width), Math.floor((event.clientY - bounds.top) * VIEW_SIZE / bounds.height))
     if (position) onCellClick(position)
   }
-  return <canvas ref={canvasRef} className="dungeon-map" data-view-size={VIEW_SIZE} data-attack-cells={JSON.stringify(targetCells)} data-camera-origin={JSON.stringify(cameraOrigin(player))} data-player={JSON.stringify(player)} data-visual-seed={visualSeed} width={CANVAS_SIZE} height={CANVAS_SIZE} data-chest={chest ? JSON.stringify(chest.position) : undefined} data-yellow-warnings={yellowWarnings} data-red-warnings={redWarnings} data-stairs={`${stairs.x},${stairs.y}`} data-enemies={JSON.stringify(enemies.map((enemy) => ({ id: enemy.id, x: enemy.position.x, y: enemy.position.y, hp: enemy.hp })))} data-layout={map.flat().map((tile) => ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile) ? '0' : '1').join('')} onClick={handleClick} role="img" aria-label={`20×20マスの${themeName}マップ。プレイヤー位置は横${player.x + 1}、縦${player.y + 1}。敵${enemies.length}体`} />
+  return <canvas ref={canvasRef} className="dungeon-map" data-view-size={VIEW_SIZE} data-attack-cells={JSON.stringify(targetCells)} data-camera-origin={JSON.stringify(cameraOrigin(player))} data-player={JSON.stringify(player)} data-visual-seed={visualSeed} width={CANVAS_SIZE} height={CANVAS_SIZE} data-chest={chest ? JSON.stringify(chest.position) : undefined} data-yellow-warnings={0} data-red-warnings={redWarnings} data-stairs={`${stairs.x},${stairs.y}`} data-enemies={JSON.stringify(enemies.map((enemy) => ({ id: enemy.id, x: enemy.position.x, y: enemy.position.y, hp: enemy.hp })))} data-layout={map.flat().map((tile) => ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile) ? '0' : '1').join('')} onClick={handleClick} role="img" aria-label={`20×20マスの${themeName}マップ。プレイヤー位置は横${player.x + 1}、縦${player.y + 1}。敵${enemies.length}体`} />
 }

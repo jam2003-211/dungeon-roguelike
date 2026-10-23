@@ -51,10 +51,10 @@ test('満タン回復・重複状態異常・対象のない範囲攻撃を無�
   const poison = state(['poisonStrike']); poison.combat.enemies[0].statuses = { poison: 3, burn: 0, slow: 0, stun: 0 }
   assert.equal(auto.chooseAutoAction(poison, map).skillId, undefined)
 })
-test('黄色・赤色は同じ残り準備ターンと気絶を参照し、赤の次行動で固定範囲を攻撃する', () => {
+test('気絶中は警告を隠し、回復後は赤の次行動で固定範囲を攻撃する', () => {
   const s = warn(state()); const enemy = s.combat.enemies[0]
   enemy.statuses = { poison: 0, burn: 0, slow: 0, stun: 1 }
-  assert.equal(combat.getWarningLevel([enemy], s.combat.position), 'yellow')
+  assert.equal(combat.getWarningLevel([enemy], s.combat.position), null)
   const waiting = combat.processEnemyTurn(s.combat, map)
   assert.equal(waiting.playerHp, s.combat.playerHp); assert.equal(combat.getWarningLevel(waiting.enemies, s.combat.position), 'red')
   const attacked = combat.processEnemyTurn(waiting, map)

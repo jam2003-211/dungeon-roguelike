@@ -59,19 +59,38 @@ test('敵は同じマスへ移動せず、開始位置を交換しない', () =>
   assert.notDeepEqual([next.enemies[0].position, next.enemies[1].position], [second.position, first.position])
 })
 
-test('準備開始時は移動せず黄色、次に赤、さらに次の行動で固定範囲を攻撃する', () => {
+test('準備中は警告なし、攻撃1ターン前だけ赤を表示して固定範囲を攻撃する', () => {
   const enemy = { ...combat.createEnemy('e', 'goblin', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
-  const yellow = combat.processEnemyTurn(state, openMap())
-  assert.deepEqual(yellow.enemies[0].position, enemy.position); assert.equal(yellow.enemies[0].warning.remaining, 2)
-  assert.equal(combat.getWarningLevel(yellow.enemies, { x: 5, y: 6 }), 'yellow')
-  const frozenCells = structuredClone(yellow.enemies[0].warning.cells)
-  const escaped = { ...yellow, position: { x: 6, y: 6 } }
+  const preparing = combat.processEnemyTurn(state, openMap())
+  assert.deepEqual(preparing.enemies[0].position, enemy.position); assert.equal(preparing.enemies[0].warning.remaining, 2)
+  assert.equal(combat.getWarningLevel(preparing.enemies, { x: 5, y: 6 }), null)
+  const frozenCells = structuredClone(preparing.enemies[0].warning.cells)
+  const escaped = { ...preparing, position: { x: 6, y: 6 } }
   const red = combat.processEnemyTurn(escaped, openMap())
   assert.equal(red.enemies[0].warning.remaining, 1); assert.deepEqual(red.enemies[0].warning.cells, frozenCells)
   assert.equal(combat.getWarningLevel(red.enemies, { x: 5, y: 6 }), 'red')
   const resolved = combat.processEnemyTurn(red, openMap())
   assert.equal(resolved.playerHp, 100); assert.equal(resolved.enemies[0].warning, null)
+})
+
+test('3ターン準備・重複警告・気絶・撃破でも赤は次行動で攻撃する敵だけ', () => {
+  const enemy = { ...combat.createEnemy('boar', 'boar', 1, { x: 5, y: 5 }), discovered: true }
+  const state = { position: { x: 5, y: 6 }, turn: 0, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
+  const prepared = combat.processEnemyTurn(state, openMap())
+  assert.equal(prepared.enemies[0].warning.remaining, 3)
+  assert.equal(combat.getWarningLevel(prepared.enemies, state.position), null)
+  const waiting = combat.processEnemyTurn(prepared, openMap())
+  assert.equal(waiting.enemies[0].warning.remaining, 2)
+  assert.equal(combat.getWarningLevel(waiting.enemies, state.position), null)
+  const ready = combat.processEnemyTurn(waiting, openMap())
+  assert.equal(ready.enemies[0].warning.remaining, 1)
+  assert.equal(combat.getWarningLevel([...waiting.enemies, ...ready.enemies], state.position), 'red')
+  assert.equal(combat.getWarningLevel([{ ...ready.enemies[0], hp: 0 }], state.position), null)
+  assert.equal(combat.getWarningLevel([{ ...ready.enemies[0], statuses: { poison: 0, burn: 0, slow: 0, stun: 1 } }], state.position), null)
+  const resolved = combat.processEnemyTurn(ready, openMap())
+  assert.equal(resolved.playerHp, 100 - enemy.attack)
+  assert.equal(combat.getWarningLevel(resolved.enemies, state.position), null)
 })
 
 test('固定予告内に残ると攻撃力ぶんダメージを受ける', () => {
