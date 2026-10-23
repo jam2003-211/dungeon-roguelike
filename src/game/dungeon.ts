@@ -99,7 +99,7 @@ export function reachableDistances(map: ForestMap, start: Position): Map<string,
 function createMap(theme: DungeonTheme, random: () => number): ForestMap {
   const definition = DUNGEON_THEMES[theme]
   const map: TileType[][] = Array.from({ length: MAP_SIZE }, () => Array<TileType>(MAP_SIZE).fill(definition.ground))
-  const obstacleCount = integer(random, 40, 60)
+  const obstacleCount = 0
   // 左下から右上へ最低限の通路を先に保護し、再試行上限に依存せず到達可能性を保証する。
   const protectedPath = new Set<string>()
   for (let y = 2; y <= START.y; y += 1) protectedPath.add(key({ x: START.x, y }))
@@ -123,7 +123,7 @@ function createFloor(theme: DungeonTheme, floor: number, totalFloors: number, le
     const stairs = far[0]
     const occupied = new Set([key(START), key(stairs)])
     const isFinal = floor === totalFloors
-    const normalCount = isFinal ? integer(random, 2, 4) : integer(random, 5, 8)
+    const normalCount = isFinal ? integer(random, 3, 5) : integer(random, 6, 9)
     const spawnCandidates = shuffled([...distances.entries()].filter(([, distance]) => distance >= 6).map(([position]) => { const [x, y] = position.split(',').map(Number); return { x, y } }).filter((position) => !occupied.has(key(position))), random)
     if (spawnCandidates.length < normalCount + (isFinal ? 1 : 0)) continue
     const enemies: EnemySpawn[] = []
@@ -166,9 +166,10 @@ export function validateDungeon(dungeon: GeneratedDungeon): boolean {
     const distances = reachableDistances(floor.map, floor.start); const positions = [floor.start, floor.stairs, ...floor.enemies.map((enemy) => enemy.position)]
     if (!isPassable(floor.map, floor.start) || !isPassable(floor.map, floor.stairs) || !distances.has(key(floor.stairs)) || new Set(positions.map(key)).size !== positions.length) return false
     const obstacles = floor.map.flat().filter((tile) => !['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)).length
-    if (obstacles < 40 || obstacles > 60) return false
+    const openFloor = obstacles === 0
+    if (!openFloor && (obstacles < 40 || obstacles > 60)) return false
     const final = floor.floor === dungeon.totalFloors; const bosses = floor.enemies.filter((enemy) => enemy.isBoss)
-    if (final ? bosses.length !== 1 || bosses[0].kind !== dungeon.bossKind || bosses[0].level !== dungeon.level || floor.enemies.length < 3 || floor.enemies.length > 5 : bosses.length !== 0 || floor.enemies.length < 5 || floor.enemies.length > 8) return false
+    if (final ? bosses.length !== 1 || bosses[0].kind !== dungeon.bossKind || bosses[0].level !== dungeon.level || floor.enemies.length < (openFloor ? 4 : 3) || floor.enemies.length > (openFloor ? 6 : 5) : bosses.length !== 0 || floor.enemies.length < (openFloor ? 6 : 5) || floor.enemies.length > (openFloor ? 9 : 8)) return false
     if (!final && (!floor.chestCandidate || !isPassable(floor.map, floor.chestCandidate) || (distances.get(key(floor.chestCandidate)) ?? 0) < 10 || positions.some((position) => key(position) === key(floor.chestCandidate!)))) return false
     return floor.enemies.every((enemy) => dungeon.enemyKinds.includes(enemy.kind) && isPassable(floor.map, enemy.position) && enemy.level >= 1 && Math.abs(enemy.level - dungeon.level) <= 5)
   })

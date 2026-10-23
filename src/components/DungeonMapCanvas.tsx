@@ -43,9 +43,9 @@ function drawHighlights(context: CanvasRenderingContext2D, enemies: EnemyState[]
   for (let y = 0; y < MAP_SIZE; y += 1) for (let x = 0; x < MAP_SIZE; x += 1) {
     const position = { x, y }; const left = x * TILE_SIZE; const top = y * TILE_SIZE
     const warning = getWarningLevel(enemies, position)
-    // 地形→グリッド→青枠／予告の薄い面→階段・宝箱・敵・プレイヤー→危険枠。
+    // 地形→グリッド→青枠／予告の塗り→階段・宝箱・敵・プレイヤー。
     if (warning) {
-      context.fillStyle = warning === 'red' ? 'rgba(255, 45, 45, .20)' : 'rgba(255, 215, 40, .14)'
+      context.fillStyle = warning === 'red' ? 'rgba(245, 40, 40, .45)' : 'rgba(245, 210, 40, .38)'
       context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2)
     } else if (targets.has(positionKey(position))) {
       context.strokeStyle = 'rgba(90, 175, 255, .65)'; context.lineWidth = 1.5
@@ -70,7 +70,7 @@ function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Posi
   const origin = cameraOrigin(player)
   context.save(); context.translate(-origin.x * TILE_SIZE, -origin.y * TILE_SIZE)
   context.beginPath(); context.rect(0, 0, MAP_SIZE * TILE_SIZE, MAP_SIZE * TILE_SIZE); context.clip()
-  context.save(); context.filter = 'saturate(70%) brightness(88%)'
+  context.save(); context.filter = 'saturate(50%) brightness(54%)'
   for (let y = 0; y < MAP_SIZE; y += 1) for (let x = 0; x < MAP_SIZE; x += 1) {
     if (!isInView(player, { x, y })) continue
     const tile = map[y][x]; const passable = ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile); const image = images.get(getDungeonTileVisual(theme, floor, x, y, passable, visualSeed))
@@ -103,14 +103,6 @@ function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Posi
   const left = player.x * TILE_SIZE; const top = player.y * TILE_SIZE
   context.fillStyle = '#f5d76e'; context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2); context.fillStyle = '#111'; context.fillRect(left + 3, top + 3, TILE_SIZE - 6, TILE_SIZE - 6)
   if (playerImage?.complete && playerImage.naturalWidth > 0) context.drawImage(playerImage, left + 2, top + 2, TILE_SIZE - 4, TILE_SIZE - 4)
-  // 最外周だけを最後に描く。人物を暗くせず、プレイヤー上の危険も隠さない。
-  for (let y = 0; y < MAP_SIZE; y++) for (let x = 0; x < MAP_SIZE; x++) {
-    if (!isInView(player, { x, y })) continue
-    const warning = getWarningLevel(enemies, { x, y })
-    if (!warning) continue
-    context.strokeStyle = warning === 'red' ? '#ff4848' : '#f2d650'; context.lineWidth = 2
-    context.strokeRect(x * TILE_SIZE + 1, y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2)
-  }
   context.restore()
 }
 

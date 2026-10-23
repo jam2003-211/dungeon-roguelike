@@ -3,7 +3,7 @@ import type { SaveData } from './saveData'
 export const SAVE_DATABASE = 'roguelike-game'
 export const SAVE_STORE = 'saves'
 export const SAVE_KEY = 'main'
-export interface SaveRepository { read: () => Promise<unknown>; write: (data: SaveData) => Promise<void> }
+export interface SaveRepository { read: () => Promise<unknown>; write: (data: SaveData) => Promise<void>; remove: () => Promise<void> }
 
 function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -21,13 +21,13 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
 }
 
 // putの成功だけでは確定しない。トランザクション完了まで待ち、失敗時は旧レコードを維持する。
-async function transact(mode: IDBTransactionMode, data?: SaveData, factory: IDBFactory = indexedDB): Promise<unknown> {
+async function transact(mode: IDBTransactionMode, data?: SaveData, factory: IDBFactory = indexedDB, remove = false): Promise<unknown> {
   const database = await openDatabase(factory)
   try {
     return await new Promise((resolve, reject) => {
       const transaction = database.transaction(SAVE_STORE, mode)
       const store = transaction.objectStore(SAVE_STORE)
-      const request = mode === 'readwrite' ? store.put(data, SAVE_KEY) : store.get(SAVE_KEY)
+      const request = remove ? store.delete(SAVE_KEY) : mode === 'readwrite' ? store.put(data, SAVE_KEY) : store.get(SAVE_KEY)
       let result: unknown
       request.onsuccess = () => { result = request.result }
       transaction.oncomplete = () => resolve(result)
@@ -38,5 +38,5 @@ async function transact(mode: IDBTransactionMode, data?: SaveData, factory: IDBF
 }
 
 export function createSaveRepository(factory?: IDBFactory): SaveRepository {
-  return { read: () => transact('readonly', undefined, factory), write: async (data) => { await transact('readwrite', data, factory) } }
+  return { read: () => transact('readonly', undefined, factory), write: async (data) => { await transact('readwrite', data, factory) }, remove: async () => { await transact('readwrite', undefined, factory, true) } }
 }

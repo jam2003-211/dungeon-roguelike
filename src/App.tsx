@@ -49,8 +49,15 @@ function App() {
     setExploration(enterGame && data.run ? restoreBattle(data.player, data.run) : createBattleState(data.player)); setExplorationMenuOpen(false)
     if (enterGame) { const next: NavigationState = { current: data.run ? 'exploration' : 'town', previous: ['title'] }; window.history.replaceState(next, ''); setNavigation(next) }
   }, [])
+  const resetAfterDelete = useCallback(() => {
+    const freshPlayer = createPlayerState(); const freshStocks = createDungeonStocks()
+    setPlayer(freshPlayer); setStocks(freshStocks); setActiveRun(null)
+    setExploration(createBattleState(freshPlayer)); setExplorationMenuOpen(false)
+    window.history.replaceState(initialNavigation, ''); setNavigation(initialNavigation)
+    return { player: freshPlayer, stocks: freshStocks, run: null }
+  }, [])
   const savedRun = activeRun && !exploration.combat.finished ? captureRun(activeRun.stockId, activeRun.floor, exploration, activeRun.startLevel) : null
-  const saveControls = useSaveGame(navigation.current === 'town', { player: activeRun ? exploration.player : player, stocks, run: savedRun }, restoreSave)
+  const saveControls = useSaveGame(navigation.current === 'town', { player: activeRun ? exploration.player : player, stocks, run: savedRun }, restoreSave, resetAfterDelete)
   const activeStock = activeRun ? stocks.find((stock) => stock.id === activeRun.stockId) ?? null : null
   const activeDungeon = activeStock?.dungeon ?? null
   const activeFloor = activeDungeon && activeRun ? activeDungeon.floors[activeRun.floor - 1] : null

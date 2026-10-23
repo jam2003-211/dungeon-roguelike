@@ -10,7 +10,7 @@ const repository = createSaveRepository()
 interface Progress { player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
 const progressKey = ({ player, stocks, run }: Progress) => JSON.stringify({ player, stocks, run })
 
-export function useSaveGame(isTown: boolean, progress: Progress, onLoad: (data: SaveData, enterGame: boolean) => void) {
+export function useSaveGame(isTown: boolean, progress: Progress, onLoad: (data: SaveData, enterGame: boolean) => void, onDelete: () => Progress) {
   const town = useRef(isTown); town.current = isTown
   const current = useRef(progress); current.current = progress
   const operations = useRef<SaveOperations | null>(null)
@@ -97,6 +97,19 @@ export function useSaveGame(isTown: boolean, progress: Progress, onLoad: (data: 
     } catch (cause) { setError(true); setMessage(`セーブに失敗しました。${cause instanceof Error ? cause.message : '再試行してください。'}`) }
     finally { setBusy(false) }
   }
+  const remove = async () => {
+    if (checking || busy || paused.current || !metadata.exists) return
+    paused.current = true; ++request.current; setSaving(false); setBusy(true); setMessage('')
+    try {
+      await operations.current!.queue.remove()
+      const fresh = onDelete()
+      current.current = fresh; previousKey.current = progressKey(fresh)
+      protectedSave.current = false; setMetadata({ exists: false, savedAt: null }); setResumeInfo(null)
+      setOpened(false); setConfirmation(null); setError(false); setMessage('データを削除しました。')
+    } catch (cause) {
+      setError(true); setMessage(`データを削除できませんでした。${cause instanceof Error ? cause.message : '再試行してください。'}`)
+    } finally { paused.current = false; setBusy(false) }
+  }
   return {
     metadata, checking, busy, saving, opened, confirmation, message, error, resumeInfo,
     open: () => { setOpened(true); setConfirmation(null) },
@@ -106,6 +119,7 @@ export function useSaveGame(isTown: boolean, progress: Progress, onLoad: (data: 
     load: () => setConfirmation('load'),
     confirm: () => { if (confirmation === 'load') void load(); else if (confirmation === 'save') void save(true) },
     resume: () => void load(), refresh: () => refresh(), retry: () => { if (protectedSave.current) void load(); else void autosave() },
+    remove,
   }
 }
 export type SaveGameControls = ReturnType<typeof useSaveGame>

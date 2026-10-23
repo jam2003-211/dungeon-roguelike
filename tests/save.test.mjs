@@ -182,11 +182,24 @@ function fakeFactory(initial) {
     transaction = { objectStore: () => ({
       get: () => { const request = {}; queueMicrotask(() => { request.result = stored; request.onsuccess(); transaction.oncomplete() }); return request },
       put: (data) => { staged = data; const request = {}; queueMicrotask(() => { request.onsuccess() }); return request },
+      delete: () => { staged = undefined; const request = {}; queueMicrotask(() => { request.onsuccess() }); return request },
     }) }; return transaction
   } }
   return { factory: { open: () => { const request = {}; queueMicrotask(() => { request.result = database; request.onsuccess() }); return request } },
     commit: () => { stored = staged; transaction.oncomplete() }, abort: () => transaction.onabort(), value: () => stored, closed: () => closed }
 }
+test('IndexedDBの単一スロット削除はトランザクション完了後に確定し、abort時は旧セーブを保持する', async () => {
+  const fake = fakeFactory(valid); const repository = createSaveRepository(fake.factory)
+  let completed = false
+  const deletion = repository.remove().then(() => { completed = true })
+  await new Promise((resolve) => setImmediate(resolve)); assert.equal(completed, false)
+  assert.deepEqual(fake.value(), valid)
+  fake.abort(); await assert.rejects(deletion)
+  assert.deepEqual(fake.value(), valid)
+  const retry = repository.remove()
+  await new Promise((resolve) => setImmediate(resolve)); fake.commit(); await retry
+  assert.equal(await repository.read(), undefined)
+})
 test('IndexedDBはput成功後もトランザクション完了まで成功にしない', async () => {
   const fake = fakeFactory(undefined); const repository = createSaveRepository(fake.factory)
   let completed = false; const promise = repository.write(valid).then(() => { completed = true })

@@ -47,7 +47,7 @@ test('階層数1・2・15の境界と20×20マップを生成する', () => {
   }
 })
 
-test('100回の生成で到達可能性・障害物率・配置・敵数・宝箱候補を保証する', () => {
+test('100回の生成で障害物なし・到達可能性・配置・敵数・宝箱候補を保証する', () => {
   for (let seed = 1; seed <= 100; seed += 1) {
     const generated = dungeon.createDungeon(12, ['forest', 'ruins', 'castle'][seed % 3], seeded(seed))
     assert.ok(generated.totalFloors >= 1 && generated.totalFloors <= 15)
@@ -57,10 +57,10 @@ test('100回の生成で到達可能性・障害物率・配置・敵数・宝�
       const distances = dungeon.reachableDistances(floor.map, floor.start)
       assert.ok(distances.has(positionKey(floor.stairs)))
       const obstacles = floor.map.flat().filter((tile) => !['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)).length
-      assert.ok(obstacles >= 40 && obstacles <= 60)
+      assert.equal(obstacles, 0)
       const all = [floor.start, floor.stairs, ...floor.enemies.map((enemy) => enemy.position)]; assert.equal(new Set(all.map(positionKey)).size, all.length)
       const final = floor.floor === generated.totalFloors; const bosses = floor.enemies.filter((enemy) => enemy.isBoss)
-      assert.ok(final ? floor.enemies.length >= 3 && floor.enemies.length <= 5 : floor.enemies.length >= 5 && floor.enemies.length <= 8)
+      assert.ok(final ? floor.enemies.length >= 4 && floor.enemies.length <= 6 : floor.enemies.length >= 6 && floor.enemies.length <= 9)
       assert.equal(bosses.length, final ? 1 : 0)
       assert.ok(floor.enemies.every((enemy) => generated.enemyKinds.includes(enemy.kind) && enemy.level >= 1 && Math.abs(enemy.level - generated.level) <= 5))
       if (!final) { assert.ok(floor.chestCandidate); assert.ok((distances.get(positionKey(floor.chestCandidate)) ?? 0) >= 10); assert.ok(!all.some((position) => positionKey(position) === positionKey(floor.chestCandidate))) }

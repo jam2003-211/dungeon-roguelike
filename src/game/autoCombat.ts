@@ -58,7 +58,7 @@ export function performAutoAttack(state: BattleState, map: ForestMap, random: ()
     const action = chooseAutoAction(candidates, map)
     if (!action) return state
     const next = action.skillId ? useSkill(state, action.skillId, action.target, map) : attackWithWeapon(state, action.target!, map, random)
-    if (next !== state) return { ...next, actionNotice: { turn: next.combat.turn, label: action.skillId ? SKILLS[action.skillId].name : '通常攻撃' } }
+    if (next !== state) return { ...next, actionNotice: { turn: next.combat.turn, label: action.skillId ? SKILLS[action.skillId].name : '通常攻撃', skillId: action.skillId } }
     // 行動開始時の毒等で対象が消える場合も、未確定の状態は採用せず次候補へ。
     if (!action.skillId) return state
     candidates = { ...candidates, cooldowns: { ...candidates.cooldowns, [action.skillId]: 1 } }

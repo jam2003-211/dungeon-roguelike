@@ -37,4 +37,11 @@ export class SaveQueue {
     try { return await this.append(() => this.repository.read()) }
     finally { this.loading = false }
   }
+
+  async remove(): Promise<void> {
+    if (this.loading) throw new Error('保存処理中です。')
+    this.loading = true; ++this.epoch; ++this.revision
+    try { await this.append(() => this.repository.remove()) }
+    finally { this.loading = false }
+  }
 }
