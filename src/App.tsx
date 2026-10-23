@@ -148,7 +148,7 @@ function App() {
     case 'dungeon': return <DungeonScreen playerLevel={player.level} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
     case 'exploration':
       if (!activeRun || !activeStock || !activeDungeon || !activeFloor) return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
-      return <ExplorationScreen visualSeed={activeDungeon.visualSeed ?? 0} onOpenChest={handleOpenChest} onClearLootNotice={() => setExploration((current) => current.loot ? { ...current, loot: { ...current.loot, notices: current.loot.notices.slice(1) } } : current)} onTestApproachChest={() => setExploration((current) => {
+      return <ExplorationScreen visualSeed={activeDungeon.visualSeed ?? 0} theme={activeStock.theme} onOpenChest={handleOpenChest} onClearLootNotice={() => setExploration((current) => current.loot ? { ...current, loot: { ...current.loot, notices: current.loot.notices.slice(1) } } : current)} onTestApproachChest={() => setExploration((current) => {
         const chest = current.loot?.chests.find((candidate) => candidate.floor === activeRun.floor && !candidate.opened)
         if (!chest) return current
         const position = chest.position

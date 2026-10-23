@@ -123,9 +123,26 @@ async function assertExplorationScreen() {
       if (worldX < 0 || worldY < 0 || worldX >= 20 || worldY >= 20) outside.push([...context.getImageData(x * 40 + 20, y * 40 + 20, 1, 1).data]);
     }
     return { size: canvas.dataset.viewSize, centered: player.x - origin.x === 5 && player.y - origin.y === 5,
-      playerBorder: ['245,215,110,255','255,72,72,255','242,214,80,255'].includes([...context.getImageData(201, 201, 1, 1).data].join(',')), darkOutside: outside.every((pixel) => pixel.join(',') === '8,14,25,255'), smoothing: context.imageSmoothingEnabled };
+      playerBorder: ['245,215,110,255','255,72,72,255','242,214,80,255'].includes([...context.getImageData(201, 201, 1, 1).data].join(',')), transparentOutside: outside.every((pixel) => pixel[3] === 0), smoothing: context.imageSmoothingEnabled };
   })()`)
-  assert.deepEqual(camera, { size: '11', centered: true, playerBorder: true, darkOutside: true, smoothing: false }, '11×11表示・中央位置・マップ外・最近傍補間が不正です。')
+  assert.deepEqual(camera, { size: '11', centered: true, playerBorder: true, transparentOutside: true, smoothing: false }, '11×11表示・中央位置・マップ外・最近傍補間が不正です。')
+}
+
+async function assertMapAppearance(theme) {
+  await waitFor(`performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/assets/backgrounds/${theme}.png'))`, `${theme}ストック背景を読み込めません。`)
+  const appearance = await evaluate(`(() => {
+    const canvas=document.querySelector('.dungeon-map'),frame=document.querySelector('.map-frame'),context=canvas.getContext('2d');
+    const origin=JSON.parse(canvas.dataset.cameraOrigin),player=JSON.parse(canvas.dataset.player),stairs=canvas.dataset.stairs.split(',').map(Number),chest=canvas.dataset.chest?JSON.parse(canvas.dataset.chest):null,enemies=JSON.parse(canvas.dataset.enemies),layout=canvas.dataset.layout;
+    const occupied=new Set([\`${'${player.x},${player.y}'}\`,\`${'${stairs[0]},${stairs[1]}'}\`,...(chest?[\`${'${chest.x},${chest.y}'}\`]:[]),...enemies.map(enemy=>\`${'${enemy.x},${enemy.y}'}\`) ]);
+    for(let y=0;y<11;y++)for(let x=0;x<11;x++){const wx=origin.x+x,wy=origin.y+y;if(wx<0||wy<0||wx>=20||wy>=20||layout[wy*20+wx]!=='0'||occupied.has(\`${'${wx},${wy}'}\`))continue;
+      const tile=[...context.getImageData(x*40+20,y*40+20,1,1).data],grid=[...context.getImageData(x*40,y*40+20,1,1).data];
+      return {background:getComputedStyle(frame).backgroundImage,tile,grid};
+    }return null;
+  })()`)
+  assert.ok(appearance, `${theme}で床タイルを取得できません。`)
+  assert.ok(appearance.background.includes(`/assets/backgrounds/${theme}.png`), `${theme}背景の割当が違います。`)
+  assert.ok(appearance.tile[0] <= 17 && appearance.tile[1] <= 17 && appearance.tile[2] <= 17 && appearance.tile[3] >= 216, `${theme}床が黒い半透明の無地ではありません: ${appearance.tile}`)
+  assert.ok(appearance.grid[0] > appearance.tile[0] + 25, `${theme}のマス目が見えません: tile=${appearance.tile}, grid=${appearance.grid}`)
 }
 
 async function clickButton(label) {
@@ -288,6 +305,7 @@ try {
       assert.equal(await evaluate("document.querySelector('.dialog-panel') === null"), true, '再生成をキャンセルできません。')
       await clickExactButton('探索開始')
       await assertExplorationScreen()
+      await assertMapAppearance('forest')
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '探索開始時のターンが0ではありません。')
       assert.equal(await evaluate("document.querySelector('.next-floor-button') === null"), true, '階段以外で次階ボタンが表示されています。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.layout.length"), 400, '20×20の生成マップではありません。')
@@ -448,6 +466,7 @@ try {
     await waitFor("Number(document.querySelector('.dungeon-map').dataset.loadedTileCount) === 35", `${theme}の35種タイル素材を読み込めません。`)
     assert.equal(await evaluate(`'${theme}' === 'ruins' ? document.querySelector('.dungeon-map').dataset.stairsTile === 'ruins_stairs_down' : /^castle_stairs_(down|alt)$/.test(document.querySelector('.dungeon-map').dataset.stairsTile)`), true, `${theme}階段画像が下り階段の想定と異なります。`)
     await assertExplorationScreen()
+    await assertMapAppearance(theme)
     await captureScreen(`dungeon-${theme}`)
     await evaluate('history.back()')
     await assertScreen('ダンジョン')
