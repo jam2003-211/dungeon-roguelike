@@ -108,23 +108,22 @@ async function checkBuild(base, outDir, profileDirectory) {
     assert.deepEqual(await read(),onlineSave,'再開だけで保存状態が変わりました')
     // 初回に表示していなかった全画像もネットワークなしでデコードする。
     assert.equal(await page.evaluate(`Promise.all(${JSON.stringify(images.map((path)=>appUrl+path))}.map(async(url)=>{const image=new Image();image.src=url;try{await image.decode();return image.naturalWidth>0}catch{return false}})).then((loaded)=>loaded.every(Boolean))`),true,'オフラインで画像が欠落しました')
-    await page.click('小回復'); await saved('data.run.battle.cooldowns.smallHeal>0')
     const chest=(await read()).run.battle.loot.chests[0]; assert.ok(chest)
     for(let i=0;i<150;i++){
       const data=await read(); const combat=data.run.battle.combat
       const adjacent=combat.enemies.some((enemy)=>Math.abs(enemy.position.x-combat.position.x)+Math.abs(enemy.position.y-combat.position.y)===1)
       if(adjacent){await page.click('攻撃');await saved(`data.run.battle.combat.turn===${combat.turn+1}`);continue}
-      const direction=plan(data,[chest.position]); if(direction===null)break
+      const direction=plan(data,[chest.position],0); if(direction===null)break
       await move(direction)
     }
     const clickCell=async(position)=>page.evaluate(`(()=>{const canvas=document.querySelector('.dungeon-map'),origin=JSON.parse(canvas.dataset.cameraOrigin),bounds=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:bounds.left+(${position.x}-origin.x+.5)*bounds.width/11,clientY:bounds.top+(${position.y}-origin.y+.5)*bounds.height/11}))})()`)
-    await clickCell(chest.position); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
+    await page.click('開ける'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
     const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,2)
     await page.reload();await page.click('探索を再開');await page.waitFor("document.querySelector('.dungeon-map')",'オフライン再起動に失敗')
     assert.deepEqual(await read(),offlineSave);await clickCell(chest.position);assert.deepEqual(await read(),offlineSave,'二重報酬が発生しました')
     for(const width of [360,390,430]){
       await page.command('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true})
-      assert.equal(await page.evaluate("(()=>{const canvas=document.querySelector('.dungeon-map'),map=canvas.getBoundingClientRect(),skills=document.querySelector('.skill-bar').getBoundingClientRect();return canvas.dataset.viewSize==='11'&&map.left>=0&&map.right<=innerWidth&&skills.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth})()"),true,`${width}で表示がはみ出します`)
+      assert.equal(await page.evaluate("(()=>{const canvas=document.querySelector('.dungeon-map'),map=canvas.getBoundingClientRect(),skills=document.querySelector('.exploration-controls').getBoundingClientRect();return canvas.dataset.viewSize==='11'&&map.left>=0&&map.right<=innerWidth&&skills.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth})()"),true,`${width}で表示がはみ出します`)
     }
     const stairs=fixture.stocks[0].dungeon.floors[0].stairs
     for(let i=0;i<150;i++){

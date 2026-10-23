@@ -113,7 +113,7 @@ test('クールダウンは使用ターンに減らず、有効な別行動だ�
 test('防御は次の被ダメージを50%軽減し、鈍足は移動行動を間引く', () => {
   const all = withAllSkills(); const attacker = { ...enemy('e', 2, 16, 1), discovered: true, warning: { remaining: 1, cells: [{ x: 2, y: 17 }], direction: 'down', target: { x: 2, y: 17 } } }
   const guarded = battle.useSkill(battle.createBattleState(all, [attacker]), 'guard', undefined, openMap())
-  assert.equal(guarded.player.currentHp, 93); assert.equal(guarded.guardTurns, 0)
+  assert.equal(guarded.player.currentHp, 73); assert.equal(guarded.guardTurns, 0)
   const slowedEnemy = { ...enemy('s', 2, 14, 10), discovered: true, statuses: { poison: 0, burn: 0, slow: 3, stun: 0 } }
   let slowed = battle.createBattleState(all, [slowedEnemy]); slowed = battle.moveBattlePlayer(slowed, 'right', openMap())
   assert.deepEqual(slowed.combat.enemies[0].position, { x: 2, y: 14 })

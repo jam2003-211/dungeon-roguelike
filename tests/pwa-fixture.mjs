@@ -12,6 +12,7 @@ function moduleUrl(path) {
   const url = `data:text/javascript;base64,${Buffer.from(output).toString('base64')}`; cache.set(path, url); return url
 }
 const load = (path) => import(moduleUrl(fileURLToPath(new URL('../src/' + path + '.ts', import.meta.url))))
+export { load as loadGameModule }
 export async function pwaFixture() {
   const player = withEquipmentFixture(await load('game/player')); const dungeon = await load('game/dungeon'); const run = await load('game/dungeonRun')
   const loot = await load('game/loot'); const saved = await load('persistence/saveData'); const { captureRun } = await load('persistence/savedRun')

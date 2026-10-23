@@ -80,7 +80,7 @@ export function resolveEnemyLoot(before: BattleState, after: BattleState, dungeo
 }
 
 export function openLootChest(battle: BattleState, floor: number, target: Position, dungeon: GeneratedDungeon, random: RandomSource = Math.random, createId?: () => string): BattleState {
-  if (!battle.loot || battle.combat.finished || Math.abs(battle.combat.position.x - target.x) + Math.abs(battle.combat.position.y - target.y) !== 1) return battle
+  if (!battle.loot || battle.combat.finished || battle.combat.position.x !== target.x || battle.combat.position.y !== target.y) return battle
   const chest = battle.loot.chests.find((candidate) => candidate.floor === floor && candidate.position.x === target.x && candidate.position.y === target.y)
   if (!chest || chest.opened) return battle
   const item = generateEquipment(dungeon, random, createId)

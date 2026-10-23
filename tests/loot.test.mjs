@@ -58,10 +58,10 @@ test('再探索では出現数・階を再抽選し、開封・報酬・撃破�
   const second = loot.createLootState(config, sequence([.1, .99])); assert.equal(second.chests.length, 1); assert.notEqual(first.chests[0].floor, second.chests[0].floor)
   assert.deepEqual(second.items, []); assert.deepEqual(second.resolvedEnemyIds, []); assert.equal(second.chests[0].opened, false)
 })
-test('開封は上下左右のみ・0ターン・HPとCD維持・自動追加・二重開封禁止', () => {
+test('開封は同じマスのみ・0ターン・HPとCD維持・自動追加・二重開封禁止', () => {
   const initial = state(); initial.loot.chests = [{ floor: 1, position: { x: 10, y: 10 }, opened: false }]; initial.cooldowns = { strongStrike: 2 }
-  for (const position of [{ x: 10, y: 8 }, { x: 9, y: 9 }, { x: 10, y: 10 }]) assert.equal(loot.openLootChest({ ...initial, combat: { ...initial.combat, position } }, 1, { x: 10, y: 10 }, config).loot, initial.loot)
-  for (const position of [{ x: 10, y: 9 }, { x: 9, y: 10 }, { x: 11, y: 10 }, { x: 10, y: 11 }]) {
+  for (const position of [{ x: 10, y: 8 }, { x: 9, y: 9 }, { x: 10, y: 9 }, { x: 9, y: 10 }, { x: 11, y: 10 }, { x: 10, y: 11 }]) assert.equal(loot.openLootChest({ ...initial, combat: { ...initial.combat, position } }, 1, { x: 10, y: 10 }, config).loot, initial.loot)
+  for (const position of [{ x: 10, y: 10 }]) {
     const adjacent = { ...initial, combat: { ...initial.combat, position } }
     const opened = loot.openLootChest(adjacent, 1, { x: 10, y: 10 }, config, () => .2, () => 'chest-item')
     assert.equal(opened.combat, adjacent.combat); assert.deepEqual(opened.cooldowns, initial.cooldowns); assert.equal(opened.player.currentHp, initial.player.currentHp)
@@ -127,7 +127,7 @@ test('通常攻撃・毒・燃焼・範囲同時撃破の経験値とドロッ�
 })
 test('階層移動・死亡・帰還・クリア後に渡すプレイヤーへ獲得装備を保持する', () => {
   const cfg = dungeon(2); let run = runs.startDungeonRun(player.createPlayerState(), cfg)
-  run.battle = { ...run.battle, loot: loot.createLootState(cfg, () => .2), combat: { ...run.battle.combat, position: { x: 10, y: 9 } } }
+  run.battle = { ...run.battle, loot: loot.createLootState(cfg, () => .2), combat: { ...run.battle.combat, position: { x: 10, y: 10 } } }
   run.battle = loot.openLootChest(run.battle, 1, { x: 10, y: 10 }, cfg, () => .2, () => 'retained')
   run.battle.combat.position = cfg.floors[0].stairs
   const advanced = runs.advanceDungeonRun(run, cfg).run

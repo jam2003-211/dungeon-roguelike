@@ -13,7 +13,7 @@ test('新規ゲームは正規の初期剣・軽鎧だけを配布し試験装�
   const state = productionPlayer.createPlayerState()
   assert.deepEqual(state.inventory.map((item) => item.id), ['initial-sword', 'initial-armor'])
   assert.equal(state.inventory.some((item) => item.testOnly), false)
-  assert.deepEqual(productionPlayer.calculateStats(state), { maxHp: 100, physical: 15, magic: 12 })
+  assert.deepEqual(productionPlayer.calculateStats(state), { maxHp: 80, physical: 12, magic: 9 })
   assert.deepEqual(state.equipment, { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null })
 })
 
@@ -27,7 +27,7 @@ test('余剰経験値を引き継いで複数レベルアップし、最大HP増
   const initial = { ...player.createPlayerState(), currentHp: 50 }
   const gained = player.gainExperience(initial, 230)
   assert.equal(gained.player.level, 3); assert.equal(gained.player.experience, 5); assert.equal(gained.levelsGained, 2)
-  assert.equal(gained.player.currentHp, 90)
+  assert.equal(gained.player.currentHp, 82)
 })
 
 test('職業倍率を統一して切り捨て、解放済み職業変更では全回復する', () => {
@@ -51,7 +51,7 @@ test('装備と解除、アクセサリー2枠、能力値・レアリティ倍�
   state = player.equipItem(state, 'test-accessory-a'); state = player.equipItem(state, 'test-accessory-b')
   assert.equal(state.equipment.accessory1, 'test-accessory-a'); assert.equal(state.equipment.accessory2, 'test-accessory-b')
   assert.ok(player.calculateStats(state).maxHp > before.maxHp)
-  assert.equal(state.currentHp, 100)
+  assert.equal(state.currentHp, 80)
   const epic = state.inventory.find((item) => item.id === 'test-accessory-b')
   assert.deepEqual(player.itemBonuses(epic), { maxHp: 15, physical: 0, magic: 3 })
   state = player.unequipSlot(state, 'accessory1'); assert.equal(state.equipment.accessory1, null)

@@ -5,7 +5,7 @@ import { SPECIAL_EFFECT_RATES, availableSkillPower, availableSkills, calculateSt
 import type { Direction } from './exploration'
 import type { LootState } from './loot'
 
-export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number; loot?: LootState }
+export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number; loot?: LootState; actionNotice?: { turn: number; label: string } }
 const offsets: Record<Direction, Position> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 const POISON_RATE = .05; const BURN_DAMAGE = 3; const LIFESTEAL_RATE = .5
 
@@ -78,23 +78,28 @@ export function attackWithWeapon(state: BattleState, target: Position, map: Fore
 export function getSkillTargetCells(state: BattleState, skillId: SkillId, map: ForestMap = FOREST_MAP): Position[] { const skill = SKILLS[skillId]; const cells: Position[] = []; for (let y = 0; y < 20; y += 1) for (let x = 0; x < 20; x += 1) { const cell = { x, y }; const distance = manhattanDistance(state.combat.position, cell); if (!isPassable(map, cell) || distance < 1 || distance > skill.range) continue; if (skill.target === 'line' || skill.target === 'dash') { if (x !== state.combat.position.x && y !== state.combat.position.y) continue } if (['single', 'line', 'area'].includes(skill.target) && !hasLineOfSight(map, state.combat.position, cell)) continue; cells.push(cell) } return cells }
 
 export function useSkill(state: BattleState, skillId: SkillId, target?: Position, map: ForestMap = FOREST_MAP): BattleState {
-  if (!availableSkills(state.player).includes(skillId) || (state.cooldowns[skillId] ?? 0) > 0) return state; const skill = SKILLS[skillId]
+  if (state.combat.finished || !availableSkills(state.player).includes(skillId) || (state.cooldowns[skillId] ?? 0) > 0) return state; const skill = SKILLS[skillId]
   if (!['self'].includes(skill.target) && (!target || !getSkillTargetCells(state, skillId, map).some((cell) => same(cell, target)))) return state
   let next = beginAction(state, skillId); next = { ...next, cooldowns: { ...next.cooldowns, [skillId]: skill.cooldown } }; const stats = calculateStats(next.player); const skillPower = availableSkillPower(next.player, skillId)
   if (skillId === 'smallHeal' || skillId === 'largeHeal') { const rate = (skillId === 'smallHeal' ? .2 : .4) * skillPower; const hp = Math.min(stats.maxHp, next.player.currentHp + Math.ceil(stats.maxHp * rate)); next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } } }
   else if (skillId === 'guard') next = { ...next, guardTurns: 3 }
   else if (skillId === 'dash' && target) { const direction: Direction = target.x > next.combat.position.x ? 'right' : target.x < next.combat.position.x ? 'left' : target.y > next.combat.position.y ? 'down' : 'up'; let position = next.combat.position; const steps = Math.min(3, manhattanDistance(position, target)); for (let i = 0; i < steps; i += 1) { const candidate = { x: position.x + offsets[direction].x, y: position.y + offsets[direction].y }; if (!isPassable(map, candidate) || next.combat.enemies.some((enemy) => same(enemy.position, candidate))) break; position = candidate } next = { ...next, combat: { ...next.combat, position } } }
   else {
-    let targets: EnemyState[] = []
-    if (skillId === 'shockwave') targets = next.combat.enemies.filter((enemy) => manhattanDistance(enemy.position, next.combat.position) <= 2 && Math.max(Math.abs(enemy.position.x - next.combat.position.x), Math.abs(enemy.position.y - next.combat.position.y)) === 1)
-    else if (skillId === 'flame' && target) targets = next.combat.enemies.filter((enemy) => Math.max(Math.abs(enemy.position.x - target.x), Math.abs(enemy.position.y - target.y)) <= 1)
-    else if (skillId === 'piercingShot' && target) targets = next.combat.enemies.filter((enemy) => (enemy.position.x === next.combat.position.x || enemy.position.y === next.combat.position.y) && manhattanDistance(enemy.position, next.combat.position) <= 4 && hasLineOfSight(map, next.combat.position, enemy.position))
-    else if (target) targets = next.combat.enemies.filter((enemy) => same(enemy.position, target))
+    const targets = getSkillAffectedEnemies(next, skillId, target, map)
     if ((skill.multiplier || ['slowSpell'].includes(skillId)) && targets.length === 0) return state
     if (skill.multiplier) next = damageEnemies(next, new Set(targets.map((enemy) => enemy.id)), Math.max(1, Math.floor((skill.attackType === 'magic' ? stats.magic : stats.physical) * skill.multiplier * skillPower)), null, false, map)
     if (skillId === 'poisonStrike' || skillId === 'slowSpell' || skillId === 'stunStrike') { const effect = skillId === 'poisonStrike' ? 'poison' : skillId === 'slowSpell' ? 'slow' : 'stun'; const ids = new Set(targets.map((enemy) => enemy.id)); next = { ...next, combat: { ...next.combat, enemies: next.combat.enemies.map((enemy) => ids.has(enemy.id) ? applyStatus(enemy, effect) : enemy) } } }
   }
   return finishAction(next, { ...next.combat, turn: next.combat.turn + 1 }, map)
+}
+
+// 自動選択と実発動で同じ効果範囲を共有する。
+export function getSkillAffectedEnemies(state: BattleState, skillId: SkillId, target?: Position, map: ForestMap = FOREST_MAP): EnemyState[] {
+  const enemies = state.combat.enemies.filter((enemy) => enemy.hp > 0)
+  if (skillId === 'shockwave') return enemies.filter((enemy) => manhattanDistance(enemy.position, state.combat.position) <= 2 && Math.max(Math.abs(enemy.position.x - state.combat.position.x), Math.abs(enemy.position.y - state.combat.position.y)) === 1)
+  if (skillId === 'flame' && target) return enemies.filter((enemy) => Math.max(Math.abs(enemy.position.x - target.x), Math.abs(enemy.position.y - target.y)) <= 1)
+  if (skillId === 'piercingShot' && target) return enemies.filter((enemy) => (enemy.position.x === state.combat.position.x || enemy.position.y === state.combat.position.y) && manhattanDistance(enemy.position, state.combat.position) <= 4 && hasLineOfSight(map, state.combat.position, enemy.position))
+  return target ? enemies.filter((enemy) => same(enemy.position, target)) : []
 }
 
 // カメラの表示範囲によらず、既存の射程・遮蔽判定から生存敵を選ぶ。

@@ -1,4 +1,4 @@
-import { calculateStats, canEquip, experienceToNext, JOBS, RARITY_LABELS, SUBTYPE_LABELS, type EquipmentItem, type PlayerState } from '../game/player'
+import { baseStats, calculateStats, canEquip, experienceToNext, JOBS, RARITY_LABELS, SUBTYPE_LABELS, type EquipmentItem, type PlayerState } from '../game/player'
 import { SKILLS } from '../game/skills'
 import { ENEMY_DEFINITIONS } from '../game/combat/combat'
 import { createDungeonStocks, MAX_DUNGEON_LEVEL, validateDungeon, type DungeonStock, type GeneratedDungeon } from '../game/dungeon'
@@ -54,7 +54,13 @@ function validPlayer(value: unknown): value is PlayerState {
     equipped.push(id)
   }
   const stats = calculateStats(player)
-  return Object.values(stats).every((number) => integer(number)) && player.currentHp <= stats.maxHp
+  return Object.values(stats).every((number) => integer(number)) && player.currentHp <= legacyMaxHp(player)
+}
+
+// v1.0の無職は基礎HP1倍。装備補正は変えず旧上限まで検証した後、新上限へ正規化する。
+function legacyMaxHp(player: PlayerState): number {
+  const base = baseStats(player.level).maxHp
+  return calculateStats(player).maxHp + (player.job === 'unemployed' ? base - Math.floor(base * JOBS.unemployed.hp) : 0)
 }
 
 function validDungeon(value: unknown, theme: DungeonStock['theme']): value is GeneratedDungeon {
@@ -92,10 +98,17 @@ export function readSaveData(value: unknown): SaveData {
   if (value.schemaVersion !== 1 && value.schemaVersion !== 2) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
   try {
     if (!isJson(value) || !text(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt)) || !validPlayer(value.player) || !validStocks(value.stocks)) throw new Error()
-    const run = value.schemaVersion === 1 ? null : value.run
-    if (run !== null && !validSavedRun(run, value.player, value.stocks, validItem)) throw new Error()
+    const player = { ...value.player, currentHp: Math.min(value.player.currentHp, calculateStats(value.player).maxHp) }
+    const run = value.schemaVersion === 1 ? null : JSON.parse(JSON.stringify(value.run)) as unknown
+    if (record(run) && record(run.battle) && record(run.battle.combat) && value.player.job === 'unemployed') {
+      const combat = run.battle.combat
+      if (combat.playerMaxHp === legacyMaxHp(value.player) && combat.playerHp === value.player.currentHp) {
+        combat.playerHp = player.currentHp; combat.playerMaxHp = calculateStats(player).maxHp
+      }
+    }
+    if (run !== null && !validSavedRun(run, player, value.stocks, validItem)) throw new Error()
     // 適用先との参照共有を防ぎ、何度ロードしても同じ状態へ置き換える。
-    const data = JSON.parse(JSON.stringify({ schemaVersion: 2, savedAt: value.savedAt, player: value.player, stocks: value.stocks, run })) as SaveData
+    const data = JSON.parse(JSON.stringify({ schemaVersion: 2, savedAt: value.savedAt, player, stocks: value.stocks, run })) as SaveData
     const previousPlayer = data.player
     data.player = removeLegacyTestEquipment(data.player, new Set(data.run?.battle.loot.items.map((item) => item.id) ?? []))
     if (data.run && data.player !== previousPlayer) {

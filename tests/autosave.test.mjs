@@ -96,7 +96,7 @@ function approach(f, target) {
   assert.ok(position); f.state.combat.position = position
 }
 test('開封・取得装備を一括復元し、同じ宝箱から再取得できない', () => {
-  const f = fixture(); const chest = f.state.loot.chests[0]; approach(f, chest.position)
+  const f = fixture(); const chest = f.state.loot.chests[0]; f.state.combat.position = { ...chest.position }
   f.state = loot.openLootChest(f.state, 1, chest.position, f.generated, () => .2, () => 'saved-chest-item')
   const loaded = restored(f)
   assert.equal(loaded.loot.chests[0].opened, true)

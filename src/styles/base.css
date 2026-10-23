@@ -135,12 +135,12 @@ h1, h2, p { margin-top: 0; }
 .dungeon-map { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
 .next-floor-button { width: min(100%, 400px); min-height: 38px; display: block; margin: 6px auto 0; color: #fff; background: #53451c; border: 2px solid var(--gold); font-weight: 800; cursor: pointer; }
 .next-floor-button:disabled { color: #aaa; background: #242424; border-color: #777; }
-.exploration-controls { width: min(100%, 400px); min-height: 128px; display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 7px auto 5px; padding: 0 12px; }
-.d-pad { width: 138px; height: 126px; display: grid; grid-template: repeat(3, 42px) / repeat(3, 46px); }
+.exploration-controls { --control-size: clamp(64px, 16.5vw, 72px); width: min(100%, 400px); min-height: calc(3 * var(--control-size) + 8px); display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 7px auto 20px; padding: 0 4px; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.d-pad { display: grid; grid-template: repeat(3, var(--control-size)) / repeat(3, var(--control-size)); gap: 4px; flex-shrink: 0; }
 .d-pad button { display: grid; place-items: center; padding: 0; background: #171a1e; border: 2px solid #fff; border-radius: 2px; cursor: pointer; touch-action: manipulation; }
 .d-pad button img { width: 30px; height: 30px; image-rendering: pixelated; }
 .d-pad__up { grid-column: 2; }.d-pad__left { grid-column: 1; grid-row: 2; }.d-pad > span { grid-column: 2; grid-row: 2; background: #282c30; border: 2px solid #777; }.d-pad__right { grid-column: 3; grid-row: 2; }.d-pad__down { grid-column: 2; grid-row: 3; }
-.attack-button { width: 92px; height: 92px; display: grid; place-items: center; align-content: center; gap: 2px; color: #fff; background: #6e2027; border: 2px solid #f0a0a6; border-radius: 50%; cursor: pointer; }
+.attack-button { width: 96px; height: 96px; flex-shrink: 0; touch-action: manipulation; display: grid; place-items: center; align-content: center; gap: 2px; color: #fff; background: #6e2027; border: 2px solid #f0a0a6; border-radius: 50%; cursor: pointer; }
 .attack-button.is-active { background: #9a2934; border-color: #fff; box-shadow: 0 0 0 3px #d94f59; }
 .attack-button span { font-size: .74rem; font-weight: 800; }.attack-button small { font-size: .53rem; }
 .skill-bar { width: min(100%, 400px); min-height: 42px; display: grid; grid-template-columns: 1fr 78px 78px; gap: 5px; margin: 0 auto; padding: 5px; color: var(--muted); background: #050608; border: 2px solid #fff; }
@@ -239,8 +239,8 @@ h1, h2, p { margin-top: 0; }
 }
 
 @media (max-height: 760px) {
-  .exploration-controls { min-height: 108px; margin-top: 4px; }
-  .d-pad { width: 120px; height: 108px; grid-template: repeat(3, 36px) / repeat(3, 40px); }
+  .exploration-controls { margin-top: 4px; }
+  .map-frame { width: min(100%, 400px, calc(100dvh - 370px)); }
   .attack-button { width: 82px; height: 82px; }
 }
 
@@ -265,3 +265,13 @@ h1, h2, p { margin-top: 0; }
 .save-status { bottom: max(2px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); }
 .app-shell { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 .exploration-screen { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+
+.floor-actions { min-height: 44px; width: min(100%, 400px); margin: 0 auto; }
+.floor-actions .next-floor-button { width: 100%; }
+.action-notice { margin-right: auto; color: #ddd; font-size: .65rem; }
+
+.skill-description { max-width: 100%; }
+.skill-description summary { cursor: pointer; min-height: 36px; padding: 7px 0; }
+.skill-description p, .skill-effect-copy { font-size: .65rem; color: var(--muted); overflow-wrap: anywhere; }
+.skill-effect-copy { flex-basis: 100%; }
+.item-detail .skill-inline-item { flex-wrap: wrap; }

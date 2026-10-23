@@ -35,15 +35,14 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   const beforeAttack = await visible(); await clickButton('攻撃')
   assert.equal(Number((await visible()).turn), Number(beforeAttack.turn) + 1)
   assert.notEqual((await visible()).enemies, beforeAttack.enemies)
-  await clickButton('小回復')
   await approach('開発テスト：宝箱へ接近')
   const chest = await evaluate("JSON.parse(document.querySelector('.dungeon-map').dataset.chest)")
-  await clickMapCell(chest.x, chest.y)
+  await clickButton('開ける')
   await waitFor("document.querySelector('.dungeon-map').dataset.chestOpened === 'true'", '宝箱が開封されません。')
   await waitSaved("data.run?.battle.loot.chests.some((chest) => chest.opened) && data.run.battle.combat.turn === Number(document.querySelector('.turn-display strong').textContent)")
   const saved = await read(); const before = await visible()
   assert.ok(saved.run); assert.ok(saved.run.battle.loot.items.length > 0)
-  assert.ok(saved.run.battle.cooldowns.smallHeal > 0)
+  assert.ok(Object.values(saved.run.battle.cooldowns).some((turns)=>turns>0))
   assert.equal(saved.player.currentHp, saved.run.battle.combat.playerHp)
   assert.equal(saved.run.battle.loot.chests.filter((chest) => chest.opened).length, 1)
   for (const width of [360, 390, 430]) {
@@ -62,6 +61,8 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   await move(); await waitSaved(`data.run?.battle.combat.turn === ${saved.run.battle.combat.turn + 1}`)
   await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await assertScreen('探索結果')
   await waitSaved('data.run === null')
+  await clickButton('町へ戻る')
+  await waitSaved("data.player.currentHp === (await import('/src/game/player.ts')).calculateStats(data.player).maxHp")
   const townSave = await read()
   assert.ok(saved.run.battle.loot.items.every((item) => townSave.player.inventory.some((owned) => owned.id === item.id)))
   // 結果画面で直ちに再読み込みしても終了済みの探索へは戻らない。
@@ -96,6 +97,8 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   })()`)
   await write(death.data); await reload(); await clickButton('探索を再開'); await assertExplorationScreen(); await clickButton(death.direction + 'へ移動')
   await assertScreen('探索結果'); await waitSaved('data.run === null && data.player.currentHp === 0')
+  await clickButton('町へ戻る')
+  await waitSaved("data.player.currentHp === (await import('/src/game/player.ts')).calculateStats(data.player).maxHp && data.player.currentHp > 0")
   await reload(); assert.equal(await evaluate("document.querySelector('.title-start').textContent.includes('探索を再開')"), false)
 
   // 最終階の状態をIndexedDBから復元し、既存のボス撃破・階段処理で終了する。
@@ -122,7 +125,7 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   await waitSaved('data.schemaVersion === 2 && data.run === null && !data.player.inventory.find((item)=>item.id === "test-light-armor").favorite')
   const migrated = await read()
   const invalid = { ...migrated, schemaVersion: 99 }
-  await write(invalid); await reload(); await clickButton('ゲーム開始'); await clickButton('職業変更'); await clickButton('開発テスト：Lv.30にする')
+  await write(invalid); await reload(); await clickButton('ゲーム開始'); await clickButton('装備・所持品'); await evaluate("[...document.querySelectorAll('.equipment-slot')].find(b=>!b.disabled).click()")
   assert.deepEqual(await read(), invalid, '未対応データを自動保存で上書きしました。')
   await write(migrated); await reload()
   console.log('自動保存・再開E2E: 移動/攻撃/回復/開封後の原子的保存、実再読み込みで全探索状態一致、再開時0ターン、再取得防止、継続、帰還/死亡/クリア後の探索消去、v1移行、破損保護、360/390/430×844を確認しました。')

@@ -32,7 +32,7 @@ export const RARITY_LABELS: Readonly<Record<Rarity, string>> = { common: 'コモ
 export const SUBTYPE_LABELS: Readonly<Record<EquipmentItem['subtype'], string>> = { sword: '剣', spear: '槍', bow: '弓', shortStaff: '短杖', longStaff: '長杖', heavyArmor: '重鎧', lightArmor: '軽鎧', heavyRobe: '重装束', lightRobe: '軽装束', commonAccessory: '共通アクセサリー' }
 
 export const JOBS = {
-  unemployed: { name: '無職', unlockLevel: 1, hp: 1, physical: 1, magic: 1, weapons: ['sword', 'spear', 'bow', 'shortStaff', 'longStaff'], armors: ['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'] },
+  unemployed: { name: '無職', unlockLevel: 1, hp: .8, physical: .8, magic: .8, weapons: ['sword', 'spear', 'bow', 'shortStaff', 'longStaff'], armors: ['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'] },
   warrior: { name: '戦士', unlockLevel: 5, hp: 1.3, physical: 1.2, magic: .6, weapons: ['sword', 'spear'], armors: ['heavyArmor', 'lightArmor'] },
   mage: { name: '魔法使い', unlockLevel: 5, hp: .8, physical: .5, magic: 1.5, weapons: ['shortStaff', 'longStaff'], armors: ['heavyRobe', 'lightRobe'] },
   hunter: { name: '狩人', unlockLevel: 20, hp: .9, physical: 1.4, magic: .7, weapons: ['sword', 'bow'], armors: ['lightArmor', 'lightRobe'] },
@@ -57,7 +57,7 @@ export function calculateStats(player: PlayerState): PlayerStats {
 }
 
 export function createPlayerState(): PlayerState {
-  return { level: 1, experience: 0, currentHp: 100, job: 'unemployed', inventory: [
+  return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', inventory: [
     { id: 'initial-sword', name: '初心者用の剣', category: 'weapon', subtype: 'sword', level: 1, rarity: 'common', baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
     { id: 'initial-armor', name: '初期軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, rarity: 'common', baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
   ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
@@ -94,3 +94,5 @@ export function sortAndFilterInventory(player: PlayerState, category: EquipmentC
 export function availableSkills(player: PlayerState): SkillId[] { return [...new Set(equippedItems(player).flatMap((item) => item.skills))] }
 export function availableSkillPower(player: PlayerState, skillId: SkillId): number { return Math.max(0, ...equippedItems(player).filter((item) => item.skills.includes(skillId)).map((item) => RARITY_MULTIPLIERS[item.rarity])) }
 export function equippedWeapon(player: PlayerState): EquipmentItem | null { return player.inventory.find((item) => item.id === player.equipment.weapon) ?? null }
+
+export function recoverInTown(player: PlayerState): PlayerState { return { ...player, currentHp: calculateStats(player).maxHp } }

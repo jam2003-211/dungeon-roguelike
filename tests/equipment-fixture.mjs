@@ -20,7 +20,7 @@ export function createEquipmentFixture(legacy = false) {
     item('test-accessory-b', '試験護符・治癒', 'accessory', 'commonAccessory', 4, 'epic', 8, 0, 2, ['smallHeal', 'stunStrike']),
   ]
 }
-export function createFixturePlayer(base = { level: 1, experience: 0, currentHp: 100, job: 'unemployed', equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }) {
+export function createFixturePlayer(base = { level: 1, experience: 0, currentHp: 80, job: 'unemployed', equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }) {
   return { ...base, inventory: createEquipmentFixture() }
 }
 export function withEquipmentFixture(player) { return { ...player, createPlayerState: () => createFixturePlayer(player.createPlayerState()) } }
