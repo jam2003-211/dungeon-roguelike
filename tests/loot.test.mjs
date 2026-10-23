@@ -65,7 +65,8 @@ test('開封は同じマスのみ・0ターン・HPとCD維持・自動追加・
     const adjacent = { ...initial, combat: { ...initial.combat, position } }
     const opened = loot.openLootChest(adjacent, 1, { x: 10, y: 10 }, config, () => .2, () => 'chest-item')
     assert.equal(opened.combat, adjacent.combat); assert.deepEqual(opened.cooldowns, initial.cooldowns); assert.equal(opened.player.currentHp, initial.player.currentHp)
-    assert.equal(opened.player.inventory.length, initial.player.inventory.length + 1); assert.equal(opened.loot.items.length, 1); assert.equal(opened.loot.notices.length, 1)
+    assert.equal(opened.player.inventory.length, initial.player.inventory.length); assert.equal(opened.player.treasures.length, 1); assert.equal(opened.loot.items.length, 1); assert.equal(opened.loot.notices.length, 1)
+    assert.equal(opened.loot.items[0].id, 'chest-item'); assert.equal(opened.loot.items[0].item.id, opened.loot.items[0].id); assert.equal(opened.loot.notices[0].level, opened.loot.items[0].level)
     assert.equal(loot.openLootChest(opened, 1, { x: 10, y: 10 }, config), opened)
   }
   assert.equal(loot.openLootChest(initial, 2, { x: 10, y: 10 }, config), initial)
@@ -123,7 +124,7 @@ test('通常攻撃・毒・燃焼・範囲同時撃破の経験値とドロッ�
   }
   before = state([enemy('a'), { ...enemy('b'), position: { x: 3, y: 17 } }]); before.player = player.equipItem(before.player, 'test-short-staff')
   after = battle.attackWithWeapon(before, { x: 2, y: 16 }, map, () => .99); after = loot.resolveEnemyLoot(before, after, config, () => 0)
-  assert.equal(after.experienceEarned, 40); assert.equal(after.loot.items.length, 2); assert.equal(after.player.inventory.length, before.player.inventory.length + 2)
+  assert.equal(after.experienceEarned, 40); assert.equal(after.loot.items.length, 2); assert.equal(after.player.inventory.length, before.player.inventory.length); assert.equal(after.player.treasures.length, 2)
 })
 test('階層移動・死亡・帰還・クリア後に渡すプレイヤーへ獲得装備を保持する', () => {
   const cfg = dungeon(2); let run = runs.startDungeonRun(player.createPlayerState(), cfg)
@@ -131,12 +132,12 @@ test('階層移動・死亡・帰還・クリア後に渡すプレイヤーへ�
   run.battle = loot.openLootChest(run.battle, 1, { x: 10, y: 10 }, cfg, () => .2, () => 'retained')
   run.battle.combat.position = cfg.floors[0].stairs
   const advanced = runs.advanceDungeonRun(run, cfg).run
-  assert.equal(advanced.battle.player.inventory.some((item) => item.id === 'retained'), true); assert.equal(advanced.battle.loot.items.length, 1)
+  assert.equal(advanced.battle.player.treasures.some((item) => item.id === 'retained'), true); assert.equal(advanced.battle.loot.items.length, 1)
   const attacker = { ...enemy('fatal'), attack: 999, warning: { remaining: 1, cells: [{ x: 3, y: 17 }], direction: 'down', target: { x: 3, y: 17 } } }
   const dead = battle.moveBattlePlayer({ ...advanced.battle, combat: { ...advanced.battle.combat, enemies: [attacker] } }, 'right', map)
-  assert.equal(dead.combat.finished, true); assert.equal(dead.player.inventory.some((item) => item.id === 'retained'), true); assert.equal(dead.loot.items.length, 1)
+  assert.equal(dead.combat.finished, true); assert.equal(dead.player.treasures.some((item) => item.id === 'retained'), true); assert.equal(dead.loot.items.length, 1)
   const cleared = { ...advanced, battle: { ...advanced.battle, combat: { ...advanced.battle.combat, position: cfg.floors[1].stairs, enemies: [] } } }
-  assert.equal(runs.advanceDungeonRun(cleared, cfg).cleared, true); assert.equal(cleared.battle.player.inventory.some((item) => item.id === 'retained'), true)
+  assert.equal(runs.advanceDungeonRun(cleared, cfg).cleared, true); assert.equal(cleared.battle.player.treasures.some((item) => item.id === 'retained'), true)
 })
 test('範囲スキルでの同時撃破も各敵1回のドロップと経験値を取得する', () => {
   let before = state([{ ...enemy('skill-a'), position: { x: 2, y: 15 } }, { ...enemy('skill-b'), position: { x: 3, y: 15 } }])
@@ -149,6 +150,22 @@ test('範囲スキルでの同時撃破も各敵1回のドロップと経験値�
 })
 test('結果のレアリティ降順・同レアLv降順・0件を処理し元データを変えない', () => {
   const base = loot.generateEquipment(config, () => .2)
-  const items = [{ ...base, id: 'a', rarity: 'rare', level: 10 }, { ...base, id: 'b', rarity: 'legendary', level: 1 }, { ...base, id: 'c', rarity: 'rare', level: 20 }, { ...base, id: 'd', rarity: 'common', level: 30 }]
-  assert.deepEqual(loot.sortRewards(items).map((item) => item.id), ['b', 'c', 'a', 'd']); assert.equal(items[0].id, 'a'); assert.deepEqual(loot.sortRewards([]), [])
+  const items = [{ ...base, id: 'a', rarity: 'rare', level: 10 }, { ...base, id: 'b', rarity: 'legendary', level: 1 }, { ...base, id: 'c', rarity: 'rare', level: 20 }, { ...base, id: 'd', rarity: 'common', level: 30 }].map((item) => ({ id: item.id, level: item.level, item }))
+  assert.deepEqual(loot.sortRewards(items).map((item) => item.id), ['d', 'c', 'a', 'b']); assert.equal(items[0].id, 'a'); assert.deepEqual(loot.sortRewards([]), [])
+})
+
+test('未鑑定のお宝は中身固定で保存され、鑑定時に同じ装備へ一度だけ変わる', () => {
+  const initial = state(); initial.loot.chests = [{ floor: 1, position: { x: 10, y: 10 }, opened: false }]
+  const found = loot.openLootChest({ ...initial, combat: { ...initial.combat, position: { x: 10, y: 10 } } }, 1, { x: 10, y: 10 }, config, () => .2, () => 'fixed-treasure')
+  const treasure = structuredClone(found.player.treasures[0]); assert.equal(treasure.id, 'fixed-treasure')
+  assert.equal(treasure.level, treasure.item.level); assert.equal(found.player.inventory.length, initial.player.inventory.length)
+  assert.equal(player.equipItem(found.player, treasure.id), found.player)
+  const one = player.appraiseTreasure(found.player, treasure.id)
+  assert.deepEqual(one.item, treasure.item); assert.deepEqual(one.player.inventory.at(-1), treasure.item); assert.deepEqual(one.player.treasures, [])
+  assert.equal(player.appraiseTreasure(one.player, treasure.id).player, one.player)
+  const secondFound = loot.openLootChest({ ...initial, combat: { ...initial.combat, position: { x: 10, y: 10 } } }, 1, { x: 10, y: 10 }, config, () => .2, () => 'second-treasure')
+  const all = player.appraiseAllTreasures({ ...secondFound.player, treasures: [...found.player.treasures, ...secondFound.player.treasures] })
+  assert.equal(all.items.length, 2); assert.deepEqual(new Set(all.items.map((item) => item.id)), new Set(['fixed-treasure', 'second-treasure']))
+  assert.equal(all.player.treasures.length, 0); assert.equal(all.player.inventory.filter((item) => all.items.some((reward) => reward.id === item.id)).length, 2)
+  assert.deepEqual(player.appraiseAllTreasures(all.player).items, [])
 })

@@ -64,7 +64,7 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   await clickButton('町へ戻る')
   await waitSaved("data.player.currentHp === (await import('/src/game/player.ts')).calculateStats(data.player).maxHp")
   const townSave = await read()
-  assert.ok(saved.run.battle.loot.items.every((item) => townSave.player.inventory.some((owned) => owned.id === item.id)))
+  assert.ok(saved.run.battle.loot.items.every((item) => townSave.player.treasures.some((owned) => owned.id === item.id)))
   // 結果画面で直ちに再読み込みしても終了済みの探索へは戻らない。
   await reload()
   assert.equal(await evaluate("document.querySelector('.title-start').textContent.includes('探索を再開')"), false)
@@ -122,7 +122,7 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   await clickButton('装備・所持品'); await clickExactButton('防具')
   await evaluate("[...document.querySelectorAll('.inventory-item')].find((button) => button.querySelector('strong').textContent.includes('試験用軽鎧')).click()")
   await clickButton('お気に入り解除'); await clickButton('閉じる')
-  await waitSaved('data.schemaVersion === 2 && data.run === null && !data.player.inventory.find((item)=>item.id === "test-light-armor").favorite')
+  await waitSaved('data.schemaVersion === 3 && data.run === null && !data.player.inventory.find((item)=>item.id === "test-light-armor").favorite')
   const migrated = await read()
   const invalid = { ...migrated, schemaVersion: 99 }
   await write(invalid); await reload(); await clickButton('ゲーム開始'); await clickButton('装備・所持品'); await evaluate("[...document.querySelectorAll('.equipment-slot')].find(b=>!b.disabled).click()")
@@ -140,7 +140,7 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.1')
   assert.equal(await read(), undefined, '初期状態が無操作で自動保存されました')
   await clickButton('ダンジョン'); await clickExactButton('生成')
-  await waitSaved('data.schemaVersion===2 && data.stocks[0].dungeon !== null && data.player.level===1')
+  await waitSaved('data.schemaVersion===3 && data.stocks[0].dungeon !== null && data.player.level===1')
   await clickExactButton('探索開始'); await waitSaved('data.run !== null')
   await reload(); await clickButton('データ削除'); await clickButton('削除する')
   await waitFor("document.querySelector('.title-start').textContent.includes('ゲーム開始')", '探索中データ削除後の表示が更新されません')

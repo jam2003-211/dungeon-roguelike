@@ -56,10 +56,29 @@ test('旧試験装備を外しても探索座標・ターン・敵・宝箱・�
 })
 test('報酬記録と結びついた非標準の試験装備は開封・獲得の整合性を優先して保持する', () => {
   const data = snapshot(fixture())
-  const item = data.player.inventory.find((item) => item.id === 'test-light-armor')
+  const item = data.player.inventory.find((item) => item.id === 'test-poison-sword')
   item.testOnly = true
-  data.run.battle.loot.items.push(structuredClone(item))
+  data.player.inventory = data.player.inventory.filter((owned) => owned.id !== item.id)
+  const treasure = { id: item.id, level: item.level, item: structuredClone(item) }
+  data.player.treasures.push(treasure)
+  data.run.battle.loot.items.push(structuredClone(treasure))
   assert.deepEqual(readSaveData(data), data)
+})
+
+test('v2縺ｮ謗｢邏｢蝣ｱ驟ｬ繧貞未螳夂ｮ壹∈遘ｻ陦後＠縲後え繧ｧ繝昴Φ縺ｨ螳晉ｮｱ迥ｶ諷九ｒ菫晄戟縺吶ｋ', () => {
+  const f = fixture(); const chest = f.state.loot.chests[0]; f.state.combat.position = { ...chest.position }
+  f.state = loot.openLootChest(f.state, 1, chest.position, f.generated, () => .2, () => 'legacy-v2-reward')
+  const legacy = snapshot(f)
+  const reward = legacy.player.treasures.find((treasure) => treasure.id === 'legacy-v2-reward')
+  legacy.schemaVersion = 2
+  legacy.player.inventory.push(structuredClone(reward.item))
+  legacy.player.treasures = legacy.player.treasures.filter((treasure) => treasure.id !== reward.id)
+  legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => structuredClone(treasure.item))
+  const migrated = readSaveData(legacy)
+  assert.equal(migrated.schemaVersion, 3)
+  assert.equal(migrated.player.inventory.some((item) => item.id === reward.id), false)
+  assert.deepEqual(migrated.player.treasures.find((treasure) => treasure.id === reward.id), reward)
+  assert.deepEqual(migrated.run.battle.loot.items.find((treasure) => treasure.id === reward.id), reward)
 })
 
 for (const [name, select] of [
@@ -101,7 +120,8 @@ test('開封・取得装備を一括復元し、同じ宝箱から再取得で�
   const loaded = restored(f)
   assert.equal(loaded.loot.chests[0].opened, true)
   assert.equal(loaded.loot.items[0].id, 'saved-chest-item')
-  assert.equal(loaded.player.inventory.filter((item) => item.id === 'saved-chest-item').length, 1)
+  assert.equal(loaded.player.inventory.filter((item) => item.id === 'saved-chest-item').length, 0)
+  assert.equal(loaded.player.treasures.filter((item) => item.id === 'saved-chest-item').length, 1)
   assert.equal(loot.openLootChest(loaded, 1, chest.position, f.generated, () => .2), loaded)
 })
 test('撃破とドロップの記録を復元し、報酬を再取得できない', () => {
@@ -132,7 +152,7 @@ for (const reason of ['帰還', '死亡', 'クリア']) test(`${reason}後は所
 test('v1を町のv2へ移行し、装備と能力値を二重適用しない', () => {
   const f = fixture(); const legacy = { schemaVersion: 1, savedAt: new Date().toISOString(), player: f.state.player, stocks: f.stocks }
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 2); assert.equal(migrated.run, null)
+  assert.equal(migrated.schemaVersion, 3); assert.equal(migrated.run, null)
   assert.deepEqual(migrated.player, legacy.player); assert.deepEqual(migrated.stocks, legacy.stocks)
   assert.deepEqual(player.calculateStats(migrated.player), player.calculateStats(legacy.player))
 })

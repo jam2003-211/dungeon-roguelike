@@ -11,10 +11,11 @@ import { advanceDungeonRun, startDungeonRun } from './game/dungeonRun'
 import { createLootState, openLootChest, resolveEnemyLoot } from './game/loot'
 import type { Direction } from './game/exploration'
 import { isPassable } from './game/forestMap'
-import { calculateStats, changeJob, createPlayerState, recoverInTown, type EquipmentItem, type JobId, type PlayerState } from './game/player'
+import { appraiseAllTreasures, appraiseTreasure, calculateStats, changeJob, createPlayerState, recoverInTown, type JobId, type PlayerState, type UnidentifiedTreasure } from './game/player'
 import { createInitialNavigation, getPreviousNavigation, navigate, readNavigationState, type NavigationState, type ScreenId } from './navigation'
 import { DungeonScreen } from './screens/DungeonScreen'
 import { EquipmentScreen } from './screens/EquipmentScreen'
+import { AppraisalScreen } from './screens/AppraisalScreen'
 import { ExplorationResultScreen } from './screens/ExplorationResultScreen'
 import { ExplorationScreen } from './screens/ExplorationScreen'
 import { JobsScreen } from './screens/JobsScreen'
@@ -42,7 +43,7 @@ function App() {
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null)
   const [exploration, setExploration] = useState<BattleState>(() => createBattleState(createPlayerState()))
   const [explorationMenuOpen, setExplorationMenuOpen] = useState(false)
-  const [result, setResult] = useState({ turn: 0, experience: 0, floor: 1, startLevel: 1, endLevel: 1, kind: '任意帰還' as ResultKind, dungeonName: '', items: [] as EquipmentItem[] })
+  const [result, setResult] = useState({ turn: 0, experience: 0, floor: 1, startLevel: 1, endLevel: 1, kind: '任意帰還' as ResultKind, dungeonName: '', items: [] as UnidentifiedTreasure[] })
   const restoreSave = useCallback((data: SaveData, enterGame: boolean) => {
     setPlayer(data.player); setStocks(data.stocks)
     setActiveRun(enterGame && data.run ? { stockId: data.run.stockId, floor: data.run.floor, startLevel: data.run.startLevel } : null)
@@ -133,6 +134,16 @@ function App() {
   }, [activeDungeon, activeFloor, activeRun, exploration, showResult])
 
   const updatePlayer = useCallback((next: PlayerState) => setPlayer(next), [])
+  const handleAppraise = useCallback((id: string) => {
+    const result = appraiseTreasure(player, id)
+    if (result.item) setPlayer(result.player)
+    return result.item
+  }, [player])
+  const handleAppraiseAll = useCallback(() => {
+    const result = appraiseAllTreasures(player)
+    if (result.items.length) setPlayer(result.player)
+    return result.items
+  }, [player])
   const updateJob = useCallback((job: JobId) => setPlayer((current) => changeJob(current, job)), [])
   const viewingExplorationData = navigation.current === 'exploration' || navigation.previous.includes('exploration')
   const visiblePlayer = viewingExplorationData ? exploration.player : player
@@ -165,6 +176,7 @@ function App() {
       })} />
     case 'explorationResult': return <ExplorationResultScreen dungeonName={result.dungeonName} items={result.items} turn={result.turn} experience={result.experience} floor={result.floor} startLevel={result.startLevel} endLevel={result.endLevel} resultKind={result.kind} onTown={returnToTown} />
     case 'equipment': return <EquipmentScreen player={visiblePlayer} readOnly={viewingExplorationData} onChange={updatePlayer} onBack={goBack} />
+    case 'appraisal': return <AppraisalScreen player={player} onAppraise={handleAppraise} onAppraiseAll={handleAppraiseAll} onBack={goBack} />
     case 'status': return <StatusScreen player={visiblePlayer} onBack={goBack} onOpenEquipment={() => openScreen('equipment')} />
     case 'jobs': return <JobsScreen player={player} onChange={updateJob} onBack={goBack} />
     case 'settings': return <SettingsScreen onBack={goBack} />

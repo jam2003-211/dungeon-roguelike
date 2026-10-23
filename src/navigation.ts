@@ -1,4 +1,4 @@
-export const SCREEN_IDS = ['title', 'town', 'dungeon', 'exploration', 'explorationResult', 'equipment', 'status', 'jobs', 'settings'] as const
+export const SCREEN_IDS = ['title', 'town', 'dungeon', 'exploration', 'explorationResult', 'equipment', 'appraisal', 'status', 'jobs', 'settings'] as const
 
 export type ScreenId = (typeof SCREEN_IDS)[number]
 

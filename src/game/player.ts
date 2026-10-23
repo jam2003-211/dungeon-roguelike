@@ -22,8 +22,10 @@ export interface EquipmentItem {
   testOnly?: boolean
 }
 
+export interface UnidentifiedTreasure { id: string; level: number; item: EquipmentItem }
+
 export interface EquipmentSlots { weapon: string | null; armor: string | null; accessory1: string | null; accessory2: string | null }
-export interface PlayerState { level: number; experience: number; currentHp: number; job: JobId; inventory: EquipmentItem[]; equipment: EquipmentSlots }
+export interface PlayerState { level: number; experience: number; currentHp: number; job: JobId; inventory: EquipmentItem[]; treasures: UnidentifiedTreasure[]; equipment: EquipmentSlots }
 export interface PlayerStats { maxHp: number; physical: number; magic: number }
 
 export const RARITY_MULTIPLIERS: Readonly<Record<Rarity, number>> = { common: 1, rare: 1.25, epic: 1.5, legendary: 2 }
@@ -57,7 +59,7 @@ export function calculateStats(player: PlayerState): PlayerStats {
 }
 
 export function createPlayerState(): PlayerState {
-  return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', inventory: [
+  return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', treasures: [], inventory: [
     { id: 'initial-sword', name: '初心者用の剣', category: 'weapon', subtype: 'sword', level: 1, rarity: 'common', baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
     { id: 'initial-armor', name: '初期軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, rarity: 'common', baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
   ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
@@ -96,3 +98,15 @@ export function availableSkillPower(player: PlayerState, skillId: SkillId): numb
 export function equippedWeapon(player: PlayerState): EquipmentItem | null { return player.inventory.find((item) => item.id === player.equipment.weapon) ?? null }
 
 export function recoverInTown(player: PlayerState): PlayerState { return { ...player, currentHp: calculateStats(player).maxHp } }
+
+export function appraiseTreasure(player: PlayerState, id: string): { player: PlayerState; item: EquipmentItem | null } {
+  const treasure = player.treasures.find((candidate) => candidate.id === id)
+  if (!treasure) return { player, item: null }
+  return { player: { ...player, treasures: player.treasures.filter((candidate) => candidate.id !== id), inventory: [...player.inventory, treasure.item] }, item: treasure.item }
+}
+
+export function appraiseAllTreasures(player: PlayerState): { player: PlayerState; items: EquipmentItem[] } {
+  if (player.treasures.length === 0) return { player, items: [] }
+  const items = player.treasures.map((treasure) => treasure.item)
+  return { player: { ...player, treasures: [], inventory: [...player.inventory, ...items] }, items }
+}

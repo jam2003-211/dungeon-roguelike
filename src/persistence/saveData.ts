@@ -1,4 +1,4 @@
-import { baseStats, calculateStats, canEquip, experienceToNext, JOBS, RARITY_LABELS, SUBTYPE_LABELS, type EquipmentItem, type PlayerState } from '../game/player'
+import { baseStats, calculateStats, canEquip, experienceToNext, JOBS, RARITY_LABELS, SUBTYPE_LABELS, type EquipmentItem, type PlayerState, type UnidentifiedTreasure } from '../game/player'
 import { SKILLS } from '../game/skills'
 import { ENEMY_DEFINITIONS } from '../game/combat/combat'
 import { createDungeonStocks, MAX_DUNGEON_LEVEL, validateDungeon, type DungeonStock, type GeneratedDungeon } from '../game/dungeon'
@@ -6,7 +6,7 @@ import type { SavedRun } from './savedRun'
 import { validSavedRun } from './savedRun'
 import { removeLegacyTestEquipment } from './legacyTestEquipment'
 
-export interface SaveData { schemaVersion: 2; savedAt: string; player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
+export interface SaveData { schemaVersion: 3; savedAt: string; player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const integer = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0
@@ -38,10 +38,16 @@ export function validItem(value: unknown): value is EquipmentItem {
     && typeof value.favorite === 'boolean' && (value.testOnly === undefined || typeof value.testOnly === 'boolean')
 }
 
+export function validTreasure(value: unknown): value is UnidentifiedTreasure {
+  return record(value) && text(value.id) && integer(value.level, 1) && validItem(value.item)
+    && value.id === value.item.id && value.level === value.item.level
+}
+
 function validPlayer(value: unknown): value is PlayerState {
   if (!record(value) || !integer(value.level, 1) || !integer(value.experience) || !integer(value.currentHp) || !member(value.job, JOBS)
-    || !Array.isArray(value.inventory) || !value.inventory.every(validItem) || !record(value.equipment)) return false
-  if (new Set(value.inventory.map((item) => item.id)).size !== value.inventory.length) return false
+    || !Array.isArray(value.inventory) || !value.inventory.every(validItem) || !Array.isArray(value.treasures) || !value.treasures.every(validTreasure) || !record(value.equipment)) return false
+  const ids = [...value.inventory.map((item) => item.id), ...value.treasures.map((item) => item.id)]
+  if (new Set(ids).size !== ids.length) return false
   const player = value as unknown as PlayerState
   if (player.level < JOBS[player.job].unlockLevel || player.experience >= experienceToNext(player.level)) return false
   const equipped: string[] = []
@@ -94,21 +100,39 @@ function validStocks(value: unknown): value is DungeonStock[] {
 }
 
 export function readSaveData(value: unknown): SaveData {
-  if (!record(value)) throw new Error('セーブデータが破損しています。')
-  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
+  if (!record(value)) throw new Error('セーブデータが不正です。')
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
   try {
-    if (!isJson(value) || !text(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt)) || !validPlayer(value.player) || !validStocks(value.stocks)) throw new Error()
-    const player = { ...value.player, currentHp: Math.min(value.player.currentHp, calculateStats(value.player).maxHp) }
+    if (!isJson(value) || !text(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt)) || !record(value.player) || !validStocks(value.stocks)) throw new Error()
+    const playerCandidate = JSON.parse(JSON.stringify(value.player)) as Record<string, unknown>
+    if (!Object.hasOwn(playerCandidate, 'treasures')) {
+      if (value.schemaVersion === 3) throw new Error()
+      playerCandidate.treasures = []
+    }
     const run = value.schemaVersion === 1 ? null : JSON.parse(JSON.stringify(value.run)) as unknown
-    if (record(run) && record(run.battle) && record(run.battle.combat) && value.player.job === 'unemployed') {
+    // v2の探索報酬は所持品に直接入っていた。報酬記録と一致する品だけを未鑑定へ移行する。
+    if (value.schemaVersion === 2 && record(run) && record(run.battle) && record(run.battle.loot) && Array.isArray(run.battle.loot.items)
+      && run.battle.loot.items.length > 0 && run.battle.loot.items.every(validItem)) {
+      const rewards = run.battle.loot.items as EquipmentItem[]
+      const inventory = playerCandidate.inventory
+      if (!Array.isArray(inventory) || !rewards.every((item) => inventory.some((owned) => JSON.stringify(owned) === JSON.stringify(item)))) throw new Error()
+      const rewardIds = new Set(rewards.map((item) => item.id))
+      const treasures = playerCandidate.treasures
+      if (!Array.isArray(treasures)) throw new Error()
+      playerCandidate.inventory = inventory.filter((owned) => !rewardIds.has((owned as EquipmentItem).id))
+      playerCandidate.treasures = [...treasures, ...rewards.map((item) => ({ id: item.id, level: item.level, item }))]
+      run.battle.loot.items = rewards.map((item) => ({ id: item.id, level: item.level, item }))
+    }
+    if (!validPlayer(playerCandidate)) throw new Error()
+    const player = { ...playerCandidate, currentHp: Math.min(playerCandidate.currentHp, calculateStats(playerCandidate).maxHp) } as PlayerState
+    if (record(run) && record(run.battle) && record(run.battle.combat) && player.job === 'unemployed') {
       const combat = run.battle.combat
-      if (combat.playerMaxHp === legacyMaxHp(value.player) && combat.playerHp === value.player.currentHp) {
+      if (combat.playerMaxHp === legacyMaxHp(playerCandidate as unknown as PlayerState) && combat.playerHp === playerCandidate.currentHp) {
         combat.playerHp = player.currentHp; combat.playerMaxHp = calculateStats(player).maxHp
       }
     }
-    if (run !== null && !validSavedRun(run, player, value.stocks, validItem)) throw new Error()
-    // 適用先との参照共有を防ぎ、何度ロードしても同じ状態へ置き換える。
-    const data = JSON.parse(JSON.stringify({ schemaVersion: 2, savedAt: value.savedAt, player, stocks: value.stocks, run })) as SaveData
+    if (run !== null && !validSavedRun(run, player, value.stocks, validTreasure)) throw new Error()
+    const data = JSON.parse(JSON.stringify({ schemaVersion: 3, savedAt: value.savedAt, player, stocks: value.stocks, run })) as SaveData
     const previousPlayer = data.player
     data.player = removeLegacyTestEquipment(data.player, new Set(data.run?.battle.loot.items.map((item) => item.id) ?? []))
     if (data.run && data.player !== previousPlayer) {
@@ -120,5 +144,5 @@ export function readSaveData(value: unknown): SaveData {
 }
 
 export function createSaveData(player: PlayerState, stocks: DungeonStock[], now = new Date(), run: SavedRun | null = null): SaveData {
-  return readSaveData({ schemaVersion: 2, savedAt: now.toISOString(), player, stocks, run })
+  return readSaveData({ schemaVersion: 3, savedAt: now.toISOString(), player, stocks, run })
 }

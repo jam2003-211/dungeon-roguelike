@@ -193,6 +193,16 @@ h1, h2, p { margin-top: 0; }
 .reward-item { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px; border: 1px solid #aaa; border-left-width: 3px; }
 .reward-item > img, .reward-item > .icon { flex: 0 0 36px; width: 36px; height: 36px; object-fit: contain; image-rendering: pixelated; }
 .reward-item > span { min-width: 0; display: grid; gap: 3px; overflow-wrap: anywhere; }.reward-item strong { font-size: .75rem; }.reward-item small { color: var(--muted); font-size: .64rem; }
+.treasure-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; color: #d7d7d7; background: #191b20; border: 1px solid #777; font: 800 1rem ui-monospace, monospace; }
+.treasure-list, .appraised-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.treasure-list li { min-height: 54px; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border); background: #08090b; }
+.treasure-list strong { font-size: .78rem; }
+.treasure-list button, .appraise-all-button, .appraised-list button { min-height: 40px; padding: 6px 11px; color: #fff; background: #111318; border: 1px solid #aaa; cursor: pointer; }
+.appraise-all-button { width: 100%; margin-top: 9px; border-color: var(--gold); }
+.appraisal-panel, .appraisal-results { padding: 12px; margin-bottom: 10px; }
+.appraisal-results h2 { margin-bottom: 9px; font-size: .88rem; }
+.appraised-list button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; }
+.appraised-list button span { color: var(--muted); font-size: .65rem; }
 .loot-toast { position: fixed; z-index: 35; left: 50%; top: 12%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); padding: 9px 12px; color: var(--gold); background: #050608; border: 2px solid var(--gold); font-size: .72rem; pointer-events: none; }
 
 /* 装備 */

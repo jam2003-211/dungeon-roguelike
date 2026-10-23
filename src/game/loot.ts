@@ -1,4 +1,4 @@
-import { RARITY_MULTIPLIERS, SUBTYPE_LABELS, type EquipmentCategory, type EquipmentItem, type Rarity, type SkillId, type SpecialEffectId } from './player'
+import { SUBTYPE_LABELS, type EquipmentCategory, type EquipmentItem, type Rarity, type SkillId, type SpecialEffectId, type UnidentifiedTreasure } from './player'
 import type { GeneratedDungeon } from './dungeon'
 import type { Position } from './forestMap'
 import type { BattleState } from './battle'
@@ -6,9 +6,9 @@ import type { BattleState } from './battle'
 export interface LootChest { floor: number; position: Position; opened: boolean }
 export interface LootState {
   chests: LootChest[]
-  items: EquipmentItem[]
+  items: UnidentifiedTreasure[]
   resolvedEnemyIds: string[]
-  notices: EquipmentItem[]
+  notices: UnidentifiedTreasure[]
 }
 export type RandomSource = () => number
 const categories: EquipmentCategory[] = ['weapon', 'armor', 'accessory']
@@ -63,7 +63,8 @@ export function createLootState(dungeon: GeneratedDungeon, random: RandomSource 
 
 function receiveItem(battle: BattleState, item: EquipmentItem): BattleState {
   if (!battle.loot) return battle
-  return { ...battle, player: { ...battle.player, inventory: [...battle.player.inventory, item] }, loot: { ...battle.loot, items: [...battle.loot.items, item], notices: [...battle.loot.notices, item] } }
+  const treasure: UnidentifiedTreasure = { id: item.id, level: item.level, item }
+  return { ...battle, player: { ...battle.player, treasures: [...battle.player.treasures, treasure] }, loot: { ...battle.loot, items: [...battle.loot.items, treasure], notices: [...battle.loot.notices, treasure] } }
 }
 
 // 全行動の前後で消えた敵を共通処理。毒・燃焼・範囲攻撃も同じ経路を通る。
@@ -88,6 +89,6 @@ export function openLootChest(battle: BattleState, floor: number, target: Positi
   return receiveItem(next, item)
 }
 
-export function sortRewards(items: EquipmentItem[]): EquipmentItem[] {
-  return [...items].sort((a, b) => RARITY_MULTIPLIERS[b.rarity] - RARITY_MULTIPLIERS[a.rarity] || b.level - a.level || a.id.localeCompare(b.id))
+export function sortRewards(items: UnidentifiedTreasure[]): UnidentifiedTreasure[] {
+  return [...items].sort((a, b) => b.level - a.level || a.id.localeCompare(b.id))
 }

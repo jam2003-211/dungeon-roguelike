@@ -1,6 +1,6 @@
 import type { BattleState } from '../game/battle'
 import type { LootState } from '../game/loot'
-import { calculateStats, enemyExperience, type EquipmentItem, type PlayerState } from '../game/player'
+import { calculateStats, enemyExperience, type EquipmentItem, type PlayerState, type UnidentifiedTreasure } from '../game/player'
 import { createEnemy, ENEMY_DEFINITIONS, getAttackCells, type EnemyState } from '../game/combat/combat'
 import { isPassable, type Position } from '../game/forestMap'
 import type { DungeonStock, DungeonStockId } from '../game/dungeon'
@@ -30,7 +30,7 @@ const pos = (value: unknown): value is Position => object(value) && int(value.x,
 const same = (a: Position, b: Position) => a.x === b.x && a.y === b.y
 const statuses = (value: unknown): boolean => object(value) && int(value.poison, 0, 5) && int(value.burn, 0, 3) && int(value.slow, 0, 3) && int(value.stun, 0, 1)
 
-export function validSavedRun(value: unknown, player: PlayerState, stocks: DungeonStock[], validItem: (value: unknown) => value is EquipmentItem): value is SavedRun {
+export function validSavedRun(value: unknown, player: PlayerState, stocks: DungeonStock[], validTreasure: (value: unknown) => value is UnidentifiedTreasure): value is SavedRun {
   if (!object(value) || !int(value.stockId, 1, 3) || !int(value.floor, 1, 15) || !int(value.startLevel, 1, player.level) || !object(value.battle)) return false
   const stock = stocks.find((candidate) => candidate.id === value.stockId)
   const dungeon = stock?.dungeon; const floor = dungeon?.floors[value.floor - 1]
@@ -72,7 +72,7 @@ export function validSavedRun(value: unknown, player: PlayerState, stocks: Dunge
     if (!candidate || !same(candidate, chest.position) || (chest.opened && chest.floor > floor.floor)) return false
     chestFloors.add(chest.floor)
   }
-  if (!loot.items.every(validItem) || new Set(loot.items.map((item) => item.id)).size !== loot.items.length) return false
-  if (!loot.items.every((item) => player.inventory.some((owned) => JSON.stringify(owned) === JSON.stringify(item)))) return false
+  if (!loot.items.every(validTreasure) || new Set(loot.items.map((item) => item.id)).size !== loot.items.length) return false
+  if (!loot.items.every((item) => player.treasures.some((owned) => JSON.stringify(owned) === JSON.stringify(item)))) return false
   return loot.items.length >= loot.chests.filter((chest) => chest.opened).length
 }

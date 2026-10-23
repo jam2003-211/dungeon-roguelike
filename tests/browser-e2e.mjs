@@ -325,7 +325,7 @@ try {
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.chestOpened"), 'false')
       await clickButton('開ける')
       await waitFor("document.querySelector('.loot-toast') !== null", '宝箱の取得通知がありません。')
-      assert.match(await evaluate("document.querySelector('.loot-toast').innerText"), /装備獲得：[\s\S]*Lv\.[\s\S]*コモン/)
+      assert.match(await evaluate("document.querySelector('.loot-toast').innerText"), /お宝 Lv\.[0-9]+を入手/)
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '宝箱開封がターンを消費しました。')
       await waitFor("document.querySelector('.dungeon-map').dataset.chestOpened === 'true' && document.querySelector('.dungeon-map').dataset.chestImageLoaded === 'true'", '開封後の宝箱画像へ切り替わりません。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.chestAsset"), '/assets/chests/128px/chest_open.png', '開封後の画像が正しくありません。')
@@ -339,21 +339,34 @@ try {
       await captureScreen('03-loot-chest')
       await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await assertScreen('探索結果')
       assert.equal(await evaluate("document.querySelectorAll('.reward-item').length"), 1, '開封報酬が結果に1個だけ表示されません。')
-      const chestReward = await evaluate("document.querySelector('.reward-item strong').textContent")
-      for (const width of [360, 390, 430]) {
-        await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
-        assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth && document.querySelector('.result-town-button').getBoundingClientRect().right <= innerWidth"), true, '報酬一覧が横にはみ出します。')
-        await captureScreen('loot-result-' + width)
-      }
-      await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
-      await clickButton('町へ戻る'); await clickButton('装備・所持品'); await assertScreen('装備・所持品')
-      assert.match(await evaluate("document.querySelector('.item-count').textContent"), /17 items/, '宝箱装備が帰還後の所持品に保持されません。')
-      let foundReward = false
-      for (const category of ['武器', '防具', 'アクセサリー']) {
-        await clickExactButton(category)
-        if (await evaluate("[...document.querySelectorAll('.inventory-item strong')].some((node) => node.textContent === " + JSON.stringify(chestReward) + ")")) foundReward = true
-      }
-      assert.equal(foundReward, true, '獲得装備を所持品で確認できません。')
+      await waitFor('(' + databaseAccess + ')().then(data => data.run === null && data.player.treasures.length > 0)', '未鑑定のお宝が自動保存されません。')
+      const savedTreasureData = await evaluate('(' + databaseAccess + ')()'); const treasure = savedTreasureData.player.treasures.at(-1)
+assert.ok(treasure); assert.equal(treasure.level, Number((await evaluate("document.querySelector('.reward-item strong').textContent")).match(/Lv\.(\d+)/)[1]))
+for (const width of [360, 390, 430]) {
+  await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth && document.querySelector('.result-town-button').getBoundingClientRect().right <= innerWidth"), true)
+  await captureScreen('loot-result-' + width)
+}
+await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+await clickButton('町へ戻る'); await clickButton('鑑定'); await assertScreen('鑑定')
+const unidentifiedText = await evaluate("document.querySelector('.treasure-list').innerText")
+assert.equal(unidentifiedText.trim(), '?\nお宝 Lv.' + treasure.level + '\n鑑定')
+assert.equal((await evaluate('document.body.innerText')).includes(treasure.item.name), false)
+await clickExactButton('鑑定')
+await waitFor("document.querySelector('.item-detail h2')?.textContent.includes(" + JSON.stringify(treasure.item.name) + ")", '鑑定した装備の詳細が表示されません。')
+assert.match(await evaluate("document.querySelector('.item-detail').innerText"), /Lv\.[0-9]+/)
+await clickExactButton('閉じる')
+assert.equal(await evaluate("document.querySelectorAll('.treasure-list li').length"), 0)
+await waitFor('(' + databaseAccess + ')().then(data => data.player.inventory.some(item => item.id === ' + JSON.stringify(treasure.id) + ') && !data.player.treasures.some(item => item.id === ' + JSON.stringify(treasure.id) + '))', '鑑定結果が保存されません。')
+await evaluate('history.back()'); await assertScreen('町メニュー')
+await clickButton('装備・所持品'); await assertScreen('装備・所持品')
+assert.match(await evaluate("document.querySelector('.item-count').textContent"), /17 items/)
+let foundReward = false
+for (let index = 0; index < 3; index += 1) {
+  await evaluate("document.querySelectorAll('.category-tabs button')[" + index + "]?.click()")
+  if (await evaluate("[...document.querySelectorAll('.inventory-item strong')].some((node) => node.textContent === " + JSON.stringify(treasure.item.name) + ")")) foundReward = true
+}
+assert.equal(foundReward, true, '鑑定した装備が所持品にありません。')
       await clickButton('前の画面へ戻る'); await clickButton('ダンジョン'); await clickExactButton('探索開始'); await assertExplorationScreen()
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.layout"), initialLayout, '再探索で地形が変わりました。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.visualSeed"), initialVisualSeed, '再探索で床模様のシードが変わりました。')
@@ -396,7 +409,7 @@ try {
       await clickButton('ダンジョン'); assert.match(await evaluate("document.querySelector('.stock-card--1').innerText"), /クリア済み[\s\S]*総階層[\s\S]*\d+階[\s\S]*最高到達[\s\S]*\d+階/, 'クリア・到達・総階層記録が反映されません。'); await clickExactButton('探索開始'); await assertExplorationScreen()
       assert.equal(await evaluate("document.querySelector('.turn-display strong').textContent"), '0', '再探索時にターンが初期化されていません。')
       assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.layout"), initialLayout, '再探索時に地形が変化しました。')
-      await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await assertScreen('探索結果'); assert.equal(await evaluate("document.querySelector('.empty-rewards')?.textContent"), '獲得装備なし'); await clickButton('町へ戻る'); await assertScreen('町メニュー')
+      await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await assertScreen('探索結果'); assert.equal(await evaluate("document.querySelector('.empty-rewards')?.textContent"), 'お宝なし'); await clickButton('町へ戻る'); await assertScreen('町メニュー')
       continue
     }
     if (heading === '装備・所持品') {
