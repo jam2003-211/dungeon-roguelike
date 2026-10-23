@@ -1,4 +1,5 @@
-import { SUBTYPE_LABELS, type EquipmentCategory, type EquipmentItem, type Rarity, type SkillId, type SpecialEffectId, type UnidentifiedTreasure } from './player'
+import { SUBTYPE_LABELS, type EquipmentCategory, type EquipmentItem, type SkillId, type SpecialEffectId, type UnidentifiedTreasure } from './player'
+import { EFFECT_PREFIXES, SKILL_PREFIXES, rollEffectLevel } from './effectLevels'
 import type { GeneratedDungeon } from './dungeon'
 import type { Position } from './forestMap'
 import type { BattleState } from './battle'
@@ -29,20 +30,23 @@ function uniquePicks<T>(values: readonly T[], count: number, random: RandomSourc
   return result
 }
 export function rollChestCount(value: number): number { return value < .1 ? 0 : value < .45 ? 1 : value < .8 ? 2 : value < .95 ? 3 : 4 }
-export function rollRarity(value: number): Rarity { return value < .6 ? 'common' : value < .85 ? 'rare' : value < .97 ? 'epic' : 'legendary' }
+// 旧レア度の60/25/12/3分布を能力個体差と発動率へ別々に写す。
+export function rollStatMultiplier(value: number): number { return value < .6 ? 1 : value < .85 ? 1.25 : value < .97 ? 1.5 : 2 }
+export function rollEffectRate(value: number): number { return value < .6 ? .1 : value < .85 ? .25 : value < .97 ? .5 : .75 }
 export function rollCategory(featured: EquipmentCategory, value: number): EquipmentCategory {
   return value < .5 ? featured : categories.filter((category) => category !== featured)[value < .75 ? 0 : 1]
 }
 
 export function generateEquipment(dungeon: Pick<GeneratedDungeon, 'level' | 'featuredCategory'>, random: RandomSource = Math.random, createId: () => string = () => crypto.randomUUID()): EquipmentItem {
-  const category = rollCategory(dungeon.featuredCategory, random()); const rarity = rollRarity(random())
+  const category = rollCategory(dungeon.featuredCategory, random())
+  const statMultiplier = rollStatMultiplier(random())
   const level = Math.max(1, dungeon.level + Math.min(5, Math.floor((random() + random()) / 2 * 11) - 5))
-  const item: EquipmentItem = { id: createId(), category, subtype: 'commonAccessory', name: '', level, rarity, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false }
+  const item: EquipmentItem = { id: createId(), category, subtype: 'commonAccessory', name: '', level, statMultiplier, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false }
   if (category === 'weapon' || category === 'armor') {
     const subtype = category === 'weapon' ? pick(['sword', 'spear', 'bow', 'shortStaff', 'longStaff'] as const, random) : pick(['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'] as const, random)
     const [hp, physical, magic] = EQUIPMENT_BASES[subtype]
     Object.assign(item, { subtype, name: SUBTYPE_LABELS[subtype], baseHp: hp, basePhysical: physical, baseMagic: magic })
-    if (category === 'weapon') item.specialEffect = pick(effects, random)
+    if (category === 'weapon') { item.specialEffect = pick(effects, random); item.specialEffectLevel = rollEffectLevel(random) }
     else item.skills = uniquePicks(skills, subtype === 'heavyArmor' || subtype === 'heavyRobe' ? 1 : 3, random)
   } else if (random() < .5) {
     item.name = '技の護符'; item.skills = [pick(skills, random)]
@@ -51,6 +55,11 @@ export function generateEquipment(dungeon: Pick<GeneratedDungeon, 'level' | 'fea
     item.name = ['生命の護符', '力の護符', '魔力の護符'][bonus]
     item.baseHp = bonus === 0 ? 8 : 0; item.basePhysical = bonus === 1 ? 2 : 0; item.baseMagic = bonus === 2 ? 2 : 0
   }
+  for (const skill of item.skills) item.skillLevels[skill] = rollEffectLevel(random)
+  item.effectRate = rollEffectRate(random())
+  const representative = skills.find((skill) => item.skills.includes(skill))
+  if (representative) item.name = `${SKILL_PREFIXES[representative]}の${category === 'accessory' ? '護符' : SUBTYPE_LABELS[item.subtype]}`
+  else if (item.specialEffect) item.name = `${EFFECT_PREFIXES[item.specialEffect]}の${SUBTYPE_LABELS[item.subtype]}`
   return item
 }
 

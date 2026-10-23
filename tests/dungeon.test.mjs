@@ -6,10 +6,11 @@ import ts from 'typescript'
 async function transpile(path) { const source = await readFile(new URL(path, import.meta.url), 'utf8'); return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText }
 function url(output) { return `data:text/javascript;base64,${Buffer.from(output).toString('base64')}` }
 const mapUrl = url(await transpile('../src/game/forestMap.ts'))
-const playerUrl = url(await transpile('../src/game/player.ts'))
+const levelsUrl = url(await transpile('../src/game/effectLevels.ts'))
+const playerUrl = url((await transpile('../src/game/player.ts')).replace("'./effectLevels'", `'${levelsUrl}'`))
 const combatUrl = url((await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`))
-const skillsUrl = url((await transpile('../src/game/skills.ts')).replace("'./player'", `'${playerUrl}'`))
-const battleUrl = url((await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`))
+const skillsUrl = url((await transpile('../src/game/skills.ts')).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`))
+const battleUrl = url((await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`))
 const dungeonUrl = url((await transpile('../src/game/dungeon.ts')).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./forestMap'", `'${mapUrl}'`).replace("'./player'", `'${playerUrl}'`))
 const runUrl = url((await transpile('../src/game/dungeonRun.ts')).replace("'./battle'", `'${battleUrl}'`).replace("'./dungeon'", `'${dungeonUrl}'`).replace("'./player'", `'${playerUrl}'`))
 const dungeon = await import(dungeonUrl); const dungeonRun = await import(runUrl); const player = await import(playerUrl); const combat = await import(combatUrl)

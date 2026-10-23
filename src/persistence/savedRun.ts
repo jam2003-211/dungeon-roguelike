@@ -28,7 +28,7 @@ const object = (value: unknown): value is Record<string, unknown> => typeof valu
 const int = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max
 const pos = (value: unknown): value is Position => object(value) && int(value.x, 0, 19) && int(value.y, 0, 19)
 const same = (a: Position, b: Position) => a.x === b.x && a.y === b.y
-const statuses = (value: unknown): boolean => object(value) && int(value.poison, 0, 5) && int(value.burn, 0, 3) && int(value.slow, 0, 3) && int(value.stun, 0, 1)
+const statuses = (value: unknown): boolean => object(value) && int(value.poison, 0, 9) && int(value.burn, 0, 7) && int(value.slow, 0, 7) && int(value.stun, 0, 1) && (value.stunRecovery === undefined || int(value.stunRecovery, 0, 2))
 
 export function validSavedRun(value: unknown, player: PlayerState, stocks: DungeonStock[], validTreasure: (value: unknown) => value is UnidentifiedTreasure): value is SavedRun {
   if (!object(value) || !int(value.stockId, 1, 3) || !int(value.floor, 1, 15) || !int(value.startLevel, 1, player.level) || !object(value.battle)) return false

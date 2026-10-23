@@ -24,7 +24,7 @@ export interface EnemyState {
   discovered: boolean
   isBoss: boolean
   warning: AttackWarning | null
-  statuses?: { poison: number; burn: number; slow: number; stun: number }
+  statuses?: { poison: number; burn: number; slow: number; stun: number; stunRecovery?: number }
 }
 
 export interface CombatState {
@@ -214,7 +214,7 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
     let enemy = enemies[index]
     const statuses = enemy.statuses ?? { poison: 0, burn: 0, slow: 0, stun: 0 }
     const skipSlowedMovement = statuses.slow > 0 && statuses.slow % 2 === 1
-    enemy = { ...enemy, statuses: { ...statuses, slow: Math.max(0, statuses.slow - 1) } }
+    enemy = { ...enemy, statuses: { ...statuses, slow: Math.max(0, statuses.slow - 1), ...('stunRecovery' in statuses ? { stunRecovery: Math.max(0, (statuses.stunRecovery ?? 0) - 1) } : {}) } }
     if (statuses.stun > 0) {
       enemies[index] = { ...enemy, statuses: { ...enemy.statuses!, stun: statuses.stun - 1 } }
       continue

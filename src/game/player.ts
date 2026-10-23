@@ -2,7 +2,9 @@ export type JobId = 'unemployed' | 'warrior' | 'mage' | 'hunter' | 'paladin' | '
 export type EquipmentCategory = 'weapon' | 'armor' | 'accessory'
 export type WeaponType = 'sword' | 'spear' | 'bow' | 'shortStaff' | 'longStaff'
 export type ArmorType = 'heavyArmor' | 'lightArmor' | 'heavyRobe' | 'lightRobe'
-export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
+import { levelMultiplier, type EffectLevel } from './effectLevels'
+
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary' // 旧セーブの移行専用
 export type SpecialEffectId = 'poison' | 'burn' | 'slow' | 'stun' | 'knockback' | 'critical' | 'lifesteal' | 'extraAttack'
 export type SkillId = 'strongStrike' | 'magicBolt' | 'piercingShot' | 'shockwave' | 'flame' | 'smallHeal' | 'largeHeal' | 'poisonStrike' | 'slowSpell' | 'stunStrike' | 'dash' | 'guard'
 
@@ -12,12 +14,16 @@ export interface EquipmentItem {
   category: EquipmentCategory
   subtype: WeaponType | ArmorType | 'commonAccessory'
   level: number
-  rarity: Rarity
+  statMultiplier: number
+  effectRate: number
+  legacySkillPower: number
   baseHp: number
   basePhysical: number
   baseMagic: number
   skills: SkillId[]
+  skillLevels: Partial<Record<SkillId, EffectLevel>>
   specialEffect: SpecialEffectId | null
+  specialEffectLevel: EffectLevel | null
   favorite: boolean
   testOnly?: boolean
 }
@@ -30,7 +36,6 @@ export interface PlayerStats { maxHp: number; physical: number; magic: number }
 
 export const RARITY_MULTIPLIERS: Readonly<Record<Rarity, number>> = { common: 1, rare: 1.25, epic: 1.5, legendary: 2 }
 export const SPECIAL_EFFECT_RATES: Readonly<Record<Rarity, number>> = { common: .1, rare: .25, epic: .5, legendary: .75 }
-export const RARITY_LABELS: Readonly<Record<Rarity, string>> = { common: 'コモン', rare: 'レア', epic: 'エピック', legendary: 'レジェンダリー' }
 export const SUBTYPE_LABELS: Readonly<Record<EquipmentItem['subtype'], string>> = { sword: '剣', spear: '槍', bow: '弓', shortStaff: '短杖', longStaff: '長杖', heavyArmor: '重鎧', lightArmor: '軽鎧', heavyRobe: '重装束', lightRobe: '軽装束', commonAccessory: '共通アクセサリー' }
 
 export const JOBS = {
@@ -45,7 +50,7 @@ export const JOBS = {
 export function experienceToNext(level: number): number { return 100 + 25 * (level - 1) }
 export function baseStats(level: number): PlayerStats { const attack = 12 + 5 * (level - 1); return { maxHp: 100 + 20 * (level - 1), physical: attack, magic: attack } }
 export function itemBonuses(item: EquipmentItem): PlayerStats {
-  const multiplier = RARITY_MULTIPLIERS[item.rarity]
+  const multiplier = item.statMultiplier ?? 1
   const scale = 1 + .1 * (item.level - 1)
   return { maxHp: Math.floor(item.baseHp * scale * multiplier), physical: Math.floor(item.basePhysical * scale * multiplier), magic: Math.floor(item.baseMagic * scale * multiplier) }
 }
@@ -60,8 +65,8 @@ export function calculateStats(player: PlayerState): PlayerStats {
 
 export function createPlayerState(): PlayerState {
   return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', treasures: [], inventory: [
-    { id: 'initial-sword', name: '初心者用の剣', category: 'weapon', subtype: 'sword', level: 1, rarity: 'common', baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
-    { id: 'initial-armor', name: '初期軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, rarity: 'common', baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], specialEffect: null, favorite: false, testOnly: false },
+    { id: 'initial-sword', name: '初心者用の剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
+    { id: 'initial-armor', name: '初期軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
   ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
 }
 export function canEquip(jobId: JobId, item: EquipmentItem): boolean { if (item.category === 'accessory') return true; const job = JOBS[jobId]; return item.category === 'weapon' ? (job.weapons as readonly string[]).includes(item.subtype) : (job.armors as readonly string[]).includes(item.subtype) }
@@ -92,9 +97,10 @@ export function gainExperience(player: PlayerState, amount: number): { player: P
 export function enemyExperience(level: number, boss: boolean): number { const normal = 20 + 5 * (level - 1); return boss ? normal * 5 : normal }
 export function toggleFavorite(player: PlayerState, id: string): PlayerState { return { ...player, inventory: player.inventory.map((item) => item.id === id ? { ...item, favorite: !item.favorite } : item) } }
 export function discardItem(player: PlayerState, id: string): PlayerState { const target = player.inventory.find((item) => item.id === id); if (!target || target.favorite || isEquipped(player, id)) return player; return { ...player, inventory: player.inventory.filter((item) => item.id !== id) } }
-export function sortAndFilterInventory(player: PlayerState, category: EquipmentCategory, query: string): EquipmentItem[] { const rank: Record<Rarity, number> = { common: 0, rare: 1, epic: 2, legendary: 3 }; const normalized = query.trim().toLocaleLowerCase('ja'); return player.inventory.filter((item) => item.category === category && item.name.toLocaleLowerCase('ja').includes(normalized)).sort((a, b) => Number(b.favorite) - Number(a.favorite) || rank[b.rarity] - rank[a.rarity] || b.level - a.level || a.id.localeCompare(b.id)) }
+export function sortAndFilterInventory(player: PlayerState, category: EquipmentCategory, query: string): EquipmentItem[] { const normalized = query.trim().toLocaleLowerCase('ja'); return player.inventory.filter((item) => item.category === category && item.name.toLocaleLowerCase('ja').includes(normalized)).sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.level - a.level || a.id.localeCompare(b.id)) }
 export function availableSkills(player: PlayerState): SkillId[] { return [...new Set(equippedItems(player).flatMap((item) => item.skills))] }
-export function availableSkillPower(player: PlayerState, skillId: SkillId): number { return Math.max(0, ...equippedItems(player).filter((item) => item.skills.includes(skillId)).map((item) => RARITY_MULTIPLIERS[item.rarity])) }
+export function availableSkillLevel(player: PlayerState, skillId: SkillId): EffectLevel { return Math.max(1, ...equippedItems(player).filter((item) => item.skills.includes(skillId)).map((item) => item.skillLevels?.[skillId] ?? 1)) as EffectLevel }
+export function availableSkillPower(player: PlayerState, skillId: SkillId): number { const level = availableSkillLevel(player, skillId); return levelMultiplier(level) * Math.max(1, ...equippedItems(player).filter((item) => item.skills.includes(skillId) && (item.skillLevels?.[skillId] ?? 1) === level).map((item) => item.legacySkillPower ?? 1)) }
 export function equippedWeapon(player: PlayerState): EquipmentItem | null { return player.inventory.find((item) => item.id === player.equipment.weapon) ?? null }
 
 export function recoverInTown(player: PlayerState): PlayerState { return { ...player, currentHp: calculateStats(player).maxHp } }

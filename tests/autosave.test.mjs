@@ -40,6 +40,10 @@ function fixture(final = false) {
 }
 const snapshot = (fixture) => createSaveData(fixture.state.player, fixture.stocks, new Date('2026-10-23T12:00:00Z'), captureRun(1, fixture.floor, fixture.state))
 const restored = (fixture) => { const data = readSaveData(snapshot(fixture)); return restoreBattle(data.player, data.run) }
+function legacyItem(item) {
+  const { statMultiplier, effectRate: _rate, legacySkillPower: _power, skillLevels: _levels, specialEffectLevel: _effectLevel, ...old } = item
+  return { ...old, rarity: ({ 1: 'common', 1.25: 'rare', 1.5: 'epic', 2: 'legendary' })[statMultiplier] }
+}
 
 test('旧試験装備を外しても探索座標・ターン・敵・宝箱・報酬・CDを変更しない', () => {
   const data = snapshot(fixture())
@@ -65,20 +69,40 @@ test('報酬記録と結びついた非標準の試験装備は開封・獲得�
   assert.deepEqual(readSaveData(data), data)
 })
 
-test('v2縺ｮ謗｢邏｢蝣ｱ驟ｬ繧貞未螳夂ｮ壹∈遘ｻ陦後＠縲後え繧ｧ繝昴Φ縺ｨ螳晉ｮｱ迥ｶ諷九ｒ菫晄戟縺吶ｋ', () => {
+test('v2の探索報酬を未鑑定品へ移行し、開封と宝箱状態を保持する', () => {
   const f = fixture(); const chest = f.state.loot.chests[0]; f.state.combat.position = { ...chest.position }
   f.state = loot.openLootChest(f.state, 1, chest.position, f.generated, () => .2, () => 'legacy-v2-reward')
   const legacy = snapshot(f)
   const reward = legacy.player.treasures.find((treasure) => treasure.id === 'legacy-v2-reward')
   legacy.schemaVersion = 2
   legacy.player.inventory.push(structuredClone(reward.item))
+  legacy.player.inventory = legacy.player.inventory.map(legacyItem)
   legacy.player.treasures = legacy.player.treasures.filter((treasure) => treasure.id !== reward.id)
-  legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => structuredClone(treasure.item))
+  legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => legacyItem(treasure.item))
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 3)
+  assert.equal(migrated.schemaVersion, 4)
   assert.equal(migrated.player.inventory.some((item) => item.id === reward.id), false)
   assert.deepEqual(migrated.player.treasures.find((treasure) => treasure.id === reward.id), reward)
   assert.deepEqual(migrated.run.battle.loot.items.find((treasure) => treasure.id === reward.id), reward)
+})
+
+test('v3の未鑑定品と探索状態を再抽選せずv4へ移行する', () => {
+  const f = fixture(); const chest = f.state.loot.chests[0]; f.state.combat.position = { ...chest.position }
+  f.state = loot.openLootChest(f.state, 1, chest.position, f.generated, () => .2, () => 'legacy-v3-treasure')
+  const expected = snapshot(f)
+  const legacy = structuredClone(expected); legacy.schemaVersion = 3
+  legacy.player.inventory = legacy.player.inventory.map(legacyItem)
+  legacy.player.treasures = legacy.player.treasures.map((treasure) => ({ ...treasure, item: legacyItem(treasure.item) }))
+  legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => ({ ...treasure, item: legacyItem(treasure.item) }))
+  const restored = readSaveData(legacy)
+  assert.deepEqual(restored, expected)
+  assert.equal(restored.player.treasures[0].id, 'legacy-v3-treasure')
+  assert.equal(restored.run.battle.combat.turn, expected.run.battle.combat.turn)
+})
+
+test('気絶からの回復猶予も探索再開時に保持する', () => {
+  const f = fixture(); f.state.combat.enemies[0].statuses.stunRecovery = 1
+  assert.equal(restored(f).combat.enemies[0].statuses.stunRecovery, 1)
 })
 
 for (const [name, select] of [
@@ -150,11 +174,12 @@ for (const reason of ['帰還', '死亡', 'クリア']) test(`${reason}後は所
   assert.equal(data.run, null); assert.deepEqual(data.player, f.state.player)
 })
 test('v1を町のv2へ移行し、装備と能力値を二重適用しない', () => {
-  const f = fixture(); const legacy = { schemaVersion: 1, savedAt: new Date().toISOString(), player: f.state.player, stocks: f.stocks }
+  const f = fixture(); const { treasures: _treasures, ...oldPlayer } = f.state.player
+  const legacy = { schemaVersion: 1, savedAt: new Date().toISOString(), player: { ...oldPlayer, inventory: oldPlayer.inventory.map(legacyItem) }, stocks: f.stocks }
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 3); assert.equal(migrated.run, null)
-  assert.deepEqual(migrated.player, legacy.player); assert.deepEqual(migrated.stocks, legacy.stocks)
-  assert.deepEqual(player.calculateStats(migrated.player), player.calculateStats(legacy.player))
+  assert.equal(migrated.schemaVersion, 4); assert.equal(migrated.run, null)
+  assert.deepEqual(migrated.player, f.state.player); assert.deepEqual(migrated.stocks, legacy.stocks)
+  assert.deepEqual(player.calculateStats(migrated.player), player.calculateStats(f.state.player))
 })
 test('探索の不整合なHP・敵ID・死亡敵・CD・宝箱・報酬を拒否する', () => {
   for (const mutate of [

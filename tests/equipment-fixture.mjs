@@ -23,4 +23,12 @@ export function createEquipmentFixture(legacy = false) {
 export function createFixturePlayer(base = { level: 1, experience: 0, currentHp: 80, job: 'unemployed', equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }) {
   return { ...base, inventory: createEquipmentFixture() }
 }
-export function withEquipmentFixture(player) { return { ...player, createPlayerState: () => createFixturePlayer(player.createPlayerState()) } }
+export function withEquipmentFixture(player) { return { ...player, createPlayerState: () => {
+  const fixture = createFixturePlayer(player.createPlayerState())
+  const multipliers = { common: 1, rare: 1.25, epic: 1.5, legendary: 2 }
+  const rates = { common: .1, rare: .25, epic: .5, legendary: .75 }
+  return { ...fixture, inventory: fixture.inventory.map(({ rarity, ...item }) => ({ ...item,
+    statMultiplier: multipliers[rarity], effectRate: rates[rarity], legacySkillPower: multipliers[rarity],
+    skillLevels: Object.fromEntries(item.skills.map((skill) => [skill, 1])), specialEffectLevel: item.specialEffect ? 1 : null,
+  })) }
+} } }

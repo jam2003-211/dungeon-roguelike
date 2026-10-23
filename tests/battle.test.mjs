@@ -7,12 +7,13 @@ import ts from 'typescript'
 async function transpile(path) { const source = await readFile(new URL(path, import.meta.url), 'utf8'); return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText }
 function url(output) { return `data:text/javascript;base64,${Buffer.from(output).toString('base64')}` }
 const mapUrl = url(await transpile('../src/game/forestMap.ts'))
-const playerUrl = url(await transpile('../src/game/player.ts'))
-const skillsOutput = (await transpile('../src/game/skills.ts')).replace("'./player'", `'${playerUrl}'`)
+const levelsUrl = url(await transpile('../src/game/effectLevels.ts'))
+const playerUrl = url((await transpile('../src/game/player.ts')).replace("'./effectLevels'", `'${levelsUrl}'`))
+const skillsOutput = (await transpile('../src/game/skills.ts')).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`)
 const skillsUrl = url(skillsOutput)
 const combatOutput = (await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`)
 const combatUrl = url(combatOutput)
-const battleOutput = (await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`)
+const battleOutput = (await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`)
 const battle = await import(url(battleOutput)); const player = withEquipmentFixture(await import(playerUrl)); const combat = await import(combatUrl); const skills = await import(skillsUrl)
 
 function openMap(obstacles = []) { const map = Array.from({ length: 20 }, (_, y) => Array.from({ length: 20 }, (_, x) => x === 0 || y === 0 || x === 19 || y === 19 ? 'wall' : 'grass')); for (const p of obstacles) map[p.y][p.x] = 'wall'; return map }

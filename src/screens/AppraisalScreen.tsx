@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Panel, AppShell, ScreenHeader } from '../components/Ui'
 import type { EquipmentItem, PlayerState, UnidentifiedTreasure } from '../game/player'
-import { RARITY_LABELS } from '../game/player'
 import { ItemDetail } from './EquipmentScreen'
 
 export function AppraisalScreen({ player, onAppraise, onAppraiseAll, onBack }: {
@@ -36,7 +35,7 @@ export function AppraisalScreen({ player, onAppraise, onAppraiseAll, onBack }: {
     {results.length > 0 && <Panel className="appraisal-results">
       <h2>鑑定結果</h2>
       <ul className="appraised-list">{results.map((item) => <li key={item.id}>
-        <button type="button" onClick={() => setSelected(item)}><strong>{item.name}</strong><span>Lv.{item.level} / {RARITY_LABELS[item.rarity]}</span></button>
+        <button type="button" onClick={() => setSelected(item)}><strong>{item.name}</strong><span>Lv.{item.level}</span></button>
       </li>)}</ul>
     </Panel>}
     {selected && <ItemDetail item={selected} player={resultPlayer} readOnly={false} inspectionOnly onClose={() => setSelected(null)} onChange={() => undefined} />}

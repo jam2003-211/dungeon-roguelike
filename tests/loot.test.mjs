@@ -71,8 +71,10 @@ test('開封は同じマスのみ・0ターン・HPとCD維持・自動追加・
   }
   assert.equal(loot.openLootChest(initial, 2, { x: 10, y: 10 }, config), initial)
 })
-test('レアリティ60/25/12/3と得意カテゴリ50/25/25の境界', () => {
-  for (const [value, rarity] of [[0, 'common'], [.599999, 'common'], [.6, 'rare'], [.849999, 'rare'], [.85, 'epic'], [.969999, 'epic'], [.97, 'legendary'], [.9999, 'legendary']]) assert.equal(loot.rollRarity(value), rarity)
+test('能力個体差と特殊効果発動率は旧60/25/12/3分布、得意カテゴリは50/25/25', () => {
+  for (const [value, multiplier, rate] of [[0, 1, .1], [.599999, 1, .1], [.6, 1.25, .25], [.849999, 1.25, .25], [.85, 1.5, .5], [.969999, 1.5, .5], [.97, 2, .75], [.9999, 2, .75]]) {
+    assert.equal(loot.rollStatMultiplier(value), multiplier); assert.equal(loot.rollEffectRate(value), rate)
+  }
   for (const featured of ['weapon', 'armor', 'accessory']) {
     const rest = ['weapon', 'armor', 'accessory'].filter((category) => category !== featured)
     for (const [value, expected] of [[0, featured], [.499999, featured], [.5, rest[0]], [.749999, rest[0]], [.75, rest[1]], [.99999, rest[1]]]) assert.equal(loot.rollCategory(featured, value), expected)
@@ -86,7 +88,8 @@ test('装備Lv±5・最低1・ID一意・JSON化・同名基本値の再現', ()
   assert.equal(loot.generateEquipment(config, sequence([0, 0, .999999, .999999])).level, 15)
   assert.equal(loot.generateEquipment({ ...config, level: 1 }, () => 0).level, 1)
   const a = loot.generateEquipment(config, sequence([0, .7, .5, .5, 0, 0])); const b = loot.generateEquipment(config, sequence([0, .7, .5, .5, 0, .99]))
-  assert.equal(a.name, b.name); assert.equal(a.level, b.level); assert.equal(a.rarity, b.rarity); assert.deepEqual(player.itemBonuses(a), player.itemBonuses(b)); assert.notEqual(a.specialEffect, b.specialEffect)
+  assert.equal(a.level, b.level); assert.equal(a.statMultiplier, b.statMultiplier); assert.deepEqual(player.itemBonuses(a), player.itemBonuses(b)); assert.notEqual(a.specialEffect, b.specialEffect)
+  assert.equal('rarity' in a, false)
 })
 test('武器8特殊効果と防具の重装1・軽装3スキルを付与する', () => {
   const effects = new Set()

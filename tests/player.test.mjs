@@ -5,7 +5,10 @@ import test from 'node:test'
 import ts from 'typescript'
 
 const source = await readFile(new URL('../src/game/player.ts', import.meta.url), 'utf8')
-const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
+const levelsSource = await readFile(new URL('../src/game/effectLevels.ts', import.meta.url), 'utf8')
+const levelsOutput = ts.transpileModule(levelsSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
+const levelsUrl = `data:text/javascript;base64,${Buffer.from(levelsOutput).toString('base64')}`
+const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText.replace("'./effectLevels'", `'${levelsUrl}'`)
 const productionPlayer = await import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`)
 const player = withEquipmentFixture(productionPlayer)
 
@@ -71,8 +74,9 @@ test('装備スキルはID単位で重複を統合する', () => {
   let state = player.createPlayerState(); state = player.equipItem(state, 'test-light-armor'); state = player.equipItem(state, 'test-accessory-a'); state = player.equipItem(state, 'test-accessory-b')
   const skills = player.availableSkills(state)
   assert.equal(new Set(skills).size, skills.length); assert.ok(skills.includes('dash')); assert.ok(skills.includes('smallHeal'))
-  const weak = { ...state.inventory.find((item) => item.id === 'test-accessory-a'), id: 'weak', rarity: 'common', skills: ['smallHeal'] }
-  const strong = { ...weak, id: 'strong', rarity: 'legendary' }
+  const weak = { ...state.inventory.find((item) => item.id === 'test-accessory-a'), id: 'weak', skills: ['smallHeal'], skillLevels: { smallHeal: 2 }, legacySkillPower: 1 }
+  const strong = { ...weak, id: 'strong', skillLevels: { smallHeal: 5 } }
   const duplicate = { ...state, inventory: [...state.inventory, weak, strong], equipment: { ...state.equipment, accessory1: 'weak', accessory2: 'strong' } }
-  assert.equal(player.availableSkillPower(duplicate, 'smallHeal'), 2)
+  assert.equal(player.availableSkillLevel(duplicate, 'smallHeal'), 5)
+  assert.equal(player.availableSkillPower(duplicate, 'smallHeal'), 1.75)
 })

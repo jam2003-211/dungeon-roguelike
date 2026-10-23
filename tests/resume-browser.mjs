@@ -115,14 +115,18 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   await clickButton('階段を使ってクリア'); await assertScreen('探索結果'); await waitSaved('data.run === null && data.stocks[0].cleared')
   await reload(); assert.equal(await evaluate("document.querySelector('.title-start').textContent.includes('探索を再開')"), false)
 
-  const legacy = { ...townSave, schemaVersion: 1 }; delete legacy.run
+  const legacy = structuredClone({ ...townSave, schemaVersion: 1 }); delete legacy.run
+  delete legacy.player.treasures
+  legacy.player.inventory = legacy.player.inventory.map(({ statMultiplier, effectRate: _rate, legacySkillPower: _power, skillLevels: _levels, specialEffectLevel: _effectLevel, ...item }) => ({
+    ...item, rarity: ({ 1: 'common', 1.25: 'rare', 1.5: 'epic', 2: 'legendary' })[statMultiplier],
+  }))
   await write(legacy); await reload(); await clickButton('ゲーム開始'); await assertScreen('町メニュー')
   assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.' + legacy.player.level)
   assert.deepEqual(await read(), legacy, 'v1を読んだだけで上書きしました。')
   await clickButton('装備・所持品'); await clickExactButton('防具')
   await evaluate("[...document.querySelectorAll('.inventory-item')].find((button) => button.querySelector('strong').textContent.includes('試験用軽鎧')).click()")
   await clickButton('お気に入り解除'); await clickButton('閉じる')
-  await waitSaved('data.schemaVersion === 3 && data.run === null && !data.player.inventory.find((item)=>item.id === "test-light-armor").favorite')
+  await waitSaved('data.schemaVersion === 4 && data.run === null && !data.player.inventory.find((item)=>item.id === "test-light-armor").favorite')
   const migrated = await read()
   const invalid = { ...migrated, schemaVersion: 99 }
   await write(invalid); await reload(); await clickButton('ゲーム開始'); await clickButton('装備・所持品'); await evaluate("[...document.querySelectorAll('.equipment-slot')].find(b=>!b.disabled).click()")
@@ -140,7 +144,7 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   assert.equal(await evaluate("document.querySelector('.level-chip strong').textContent"), 'Lv.1')
   assert.equal(await read(), undefined, '初期状態が無操作で自動保存されました')
   await clickButton('ダンジョン'); await clickExactButton('生成')
-  await waitSaved('data.schemaVersion===3 && data.stocks[0].dungeon !== null && data.player.level===1')
+  await waitSaved('data.schemaVersion===4 && data.stocks[0].dungeon !== null && data.player.level===1')
   await clickExactButton('探索開始'); await waitSaved('data.run !== null')
   await reload(); await clickButton('データ削除'); await clickButton('削除する')
   await waitFor("document.querySelector('.title-start').textContent.includes('ゲーム開始')", '探索中データ削除後の表示が更新されません')

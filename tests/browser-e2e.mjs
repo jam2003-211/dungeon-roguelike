@@ -415,18 +415,18 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     if (heading === '装備・所持品') {
       assert.equal(await evaluate("document.querySelector('.screen-intro') === null"), true, '不要な開発用案内文が表示されています。')
       assert.deepEqual(await evaluate("[...new Set([...document.querySelectorAll('.inventory-item__image')].map((image) => image.getAttribute('src')))].sort()"), ['/assets/weapons/bow.png', '/assets/weapons/spear.png', '/assets/weapons/staff.png', '/assets/weapons/sword.png', '/assets/weapons/wand.png'], '武器5種類の画像対応が不正です。')
-      const effectItems = [['試験用の槍', 'knockback'], ['試験用の弓', 'critical'], ['試験用の短杖', 'lifesteal'], ['試験用の長杖', 'extra_attack'], ['毒の試験剣', 'poison'], ['燃焼の試験剣', 'burn'], ['鈍足の試験剣', 'slow'], ['気絶の試験剣', 'stun']]
-      for (const [name, effect] of effectItems) {
+      const effectItems = [['試験用の槍', 'knockback', 'ノックバック'], ['試験用の弓', 'critical', '会心'], ['試験用の短杖', 'lifesteal', '吸血'], ['試験用の長杖', 'extra_attack', '追加攻撃'], ['毒の試験剣', 'poison', '毒'], ['燃焼の試験剣', 'burn', '燃焼'], ['鈍足の試験剣', 'slow', '鈍足'], ['気絶の試験剣', 'stun', '気絶']]
+      for (const [name, effect, label] of effectItems) {
         await clickButton(name)
         await waitFor("document.querySelector('.item-detail .special-effect-icon')?.naturalWidth === 128", `${name}の特殊効果画像を読み込めません。`)
         const icon = await evaluate("({ src: document.querySelector('.item-detail .special-effect-icon')?.getAttribute('src'), width: document.querySelector('.item-detail .special-effect-icon')?.naturalWidth })")
         assert.deepEqual(icon, { src: `/assets/special-effects/${effect}.png`, width: 128 }, `${name}の特殊効果画像が正しくありません。`)
         assert.equal(await evaluate("(() => { const image = document.querySelector('.item-detail .special-effect-icon'); const rect = image.getBoundingClientRect(); return rect.width === 24 && rect.height === 24 && getComputedStyle(image).objectFit === 'contain' })()"), true, `${name}のアイコンが枠内に正しく収まりません。`)
-        assert.equal(await evaluate("document.querySelector('.item-detail').innerText.includes(" + JSON.stringify(effect === 'extra_attack' ? 'extraAttack' : effect) + ")"), true, `${name}の効果名が表示されていません。`)
+        assert.equal(await evaluate("document.querySelector('.item-detail').innerText.includes(" + JSON.stringify(label + ' Lv.1') + ")"), true, `${name}の効果名とLvが表示されていません。`)
         if (effect === 'knockback') {
           await evaluate("document.querySelector('.item-detail .special-effect-icon').src = '/missing-special-effect.png'")
           await waitFor("document.querySelector('.item-detail .special-effect-icon') === null", '欠落画像時の表示が復旧しません。')
-          assert.equal(await evaluate("document.querySelector('.item-detail').innerText.includes('knockback')"), true, '画像欠落時に特殊効果名が失われました。')
+          assert.equal(await evaluate("document.querySelector('.item-detail').innerText.includes('ノックバック Lv.1')"), true, '画像欠落時に特殊効果名が失われました。')
         }
         await clickButton('閉じる')
       }
@@ -562,7 +562,7 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     const beforeAttack = Number(await evaluate("document.querySelector('.turn-display strong').textContent"))
     await clickButton('攻撃')
     assert.equal(Number(await evaluate("document.querySelector('.turn-display strong').textContent")), beforeAttack+1)
-    assert.equal(await evaluate("document.querySelector('.action-notice').textContent"), '強撃')
+    assert.equal(await evaluate("document.querySelector('.action-notice').textContent"), '強撃 Lv.1')
     await waitFor("!!document.querySelector('.auto-skill-slot[data-auto-skill-id=strongStrike].is-triggered') && !!document.querySelector('.combat-hit--enemy')", '自動スキルの発光・命中演出が表示されません')
     await assertExplorationScreen()
     await captureScreen(`exploration-${width}x844`)

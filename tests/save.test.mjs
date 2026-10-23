@@ -33,6 +33,10 @@ function fixture() {
 }
 const valid = fixture()
 const clone = () => structuredClone(valid)
+function legacyItem(item) {
+  const { statMultiplier, effectRate: _rate, legacySkillPower: _power, skillLevels: _levels, specialEffectLevel: _effectLevel, ...old } = item
+  return { ...old, rarity: ({ 1: 'common', 1.25: 'rare', 1.5: 'epic', 2: 'legendary' })[statMultiplier] }
+}
 
 test('旧試験装備は固定IDと専用フラグの両方で除去し、正規装備・育成・記録を維持する', () => {
   const old = clone()
@@ -45,8 +49,9 @@ test('旧試験装備は固定IDと専用フラグの両方で除去し、正規
   assert.equal(restored.player.currentHp, player.calculateStats(restored.player).maxHp)
   assert.equal(restored.player.level, old.player.level); assert.equal(restored.player.experience, old.player.experience); assert.equal(restored.player.job, old.player.job)
   assert.deepEqual(restored.stocks, old.stocks); assert.deepEqual(old, original)
-  assert.equal(restored.schemaVersion, 3); assert.deepEqual(readSaveData(restored), restored)
-  assert.deepEqual(readSaveData({ ...old, schemaVersion: 1 }).player, restored.player)
+  assert.equal(restored.schemaVersion, 4); assert.deepEqual(readSaveData(restored), restored)
+  const { treasures: _treasures, ...legacyPlayer } = old.player
+  assert.deepEqual(readSaveData({ ...old, schemaVersion: 1, player: { ...legacyPlayer, inventory: legacyPlayer.inventory.map(legacyItem) } }).player, restored.player)
 })
 test('名前・ID・専用フラグだけでは装備を削除せず、既存HPと正規装備の性能を維持する', () => {
   const data = clone()
@@ -92,7 +97,7 @@ test('未生成のストックを保存でき、探索中の状態をスナッ�
   for (const key of ['combat', 'loot', 'cooldowns', 'activeRun', 'turn']) assert.equal(key in data, false)
 })
 test('対応外バージョンを識別して拒否する', () => {
-  for (const schemaVersion of [undefined, 0, 4, '1']) assert.throws(() => readSaveData({ ...valid, schemaVersion }), /バージョン/)
+  for (const schemaVersion of [undefined, 0, 5, '1']) assert.throws(() => readSaveData({ ...valid, schemaVersion }), /バージョン/)
 })
 test('不正なLv・経験値・HP・職業・保存日時を拒否する', () => {
   for (const [key, value] of [['level', 0], ['level', 1.5], ['experience', -1], ['experience', 999999], ['currentHp', -1], ['currentHp', 999999], ['job', 'unknown']]) {
@@ -108,6 +113,10 @@ test('装備配列の破損・重複ID・不明な装備とスキル・特殊効
     (data) => { data.player.inventory[0].skills = ['unknown'] },
     (data) => { data.player.inventory[0].specialEffect = 'unknown' },
     (data) => { data.player.inventory[0].rarity = 'unknown' },
+    (data) => { data.player.inventory[0].statMultiplier = 99 },
+    (data) => { data.player.inventory[0].effectRate = -1 },
+    (data) => { data.player.inventory[0].specialEffect = 'poison'; data.player.inventory[0].specialEffectLevel = 6 },
+    (data) => { data.player.inventory.find((item) => item.id === 'test-light-armor').skillLevels.strongStrike = 0 },
   ]) { const data = clone(); mutate(data); assert.throws(() => readSaveData(data), /破損/) }
 })
 test('装備中IDの参照・カテゴリ・重複装備・職業条件を検証する', () => {
@@ -220,5 +229,5 @@ test('初回セーブは確認なしで保存し、不在データのロード�
   repository.read = async () => undefined
   await assert.rejects(operations.load(true), /ありません/)
   const data = await operations.save(valid.player, valid.stocks, false)
-  assert.deepEqual(data.player, valid.player); assert.equal(data.schemaVersion, 3)
+  assert.deepEqual(data.player, valid.player); assert.equal(data.schemaVersion, 4)
 })

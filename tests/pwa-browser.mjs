@@ -118,7 +118,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     }
     const clickCell=async(position)=>page.evaluate(`(()=>{const canvas=document.querySelector('.dungeon-map'),origin=JSON.parse(canvas.dataset.cameraOrigin),bounds=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:bounds.left+(${position.x}-origin.x+.5)*bounds.width/11,clientY:bounds.top+(${position.y}-origin.y+.5)*bounds.height/11}))})()`)
     await page.click('開ける'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
-    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,3)
+    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,4)
     await page.reload();await page.click('探索を再開');await page.waitFor("document.querySelector('.dungeon-map')",'オフライン再起動に失敗')
     assert.deepEqual(await read(),offlineSave);await clickCell(chest.position);assert.deepEqual(await read(),offlineSave,'二重報酬が発生しました')
     for(const width of [360,390,430]){
@@ -149,7 +149,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     const beforeUpdate=await read();await page.click('更新する')
     await page.waitFor("window.__updateMarker!==true && document.querySelector('.title-start') && !document.querySelector('.title-start').disabled",'更新が完了しません')
     assert.deepEqual(await read(),beforeUpdate,'SW更新で保存データが変化しました')
-    assert.equal((await read()).schemaVersion,3)
+    assert.equal((await read()).schemaVersion,4)
     assert.deepEqual(page.errors,[],'アプリの実行時エラーが発生しました')
     assert.deepEqual(wrongPaths,[],'サブパス外または欠落したリソースへアクセスしました')
     console.log(`PWA ${base}: Manifest/SW/scope、全${images.length}画像のオフライン読み込み、操作・取得・自動保存・再開・更新・360/390/430表示が成功`)
