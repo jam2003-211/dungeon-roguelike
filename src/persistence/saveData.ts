@@ -169,6 +169,12 @@ export function readSaveData(value: unknown): SaveData {
     const data = JSON.parse(JSON.stringify({ schemaVersion: 4, savedAt: value.savedAt, player, stocks: value.stocks, run })) as SaveData
     const previousPlayer = data.player
     data.player = removeLegacyTestEquipment(data.player, new Set(data.run?.battle.loot.items.map((item) => item.id) ?? []))
+    // 既知の初期IDと旧名称だけを更新し、装備性能・付与効果は一切変更しない。
+    data.player.inventory = data.player.inventory.map((item) => {
+      if (item.id === 'initial-sword' && item.name === '初心者用の剣' && item.subtype === 'sword' && item.skills.length === 0 && item.specialEffect === null) return { ...item, name: '剣' }
+      if (item.id === 'initial-armor' && item.name === '初期軽鎧' && item.subtype === 'lightArmor' && item.skills.length === 0 && item.specialEffect === null) return { ...item, name: '軽鎧' }
+      return item
+    })
     if (data.run && data.player !== previousPlayer) {
       data.run.battle.combat.playerHp = data.player.currentHp
       data.run.battle.combat.playerMaxHp = calculateStats(data.player).maxHp

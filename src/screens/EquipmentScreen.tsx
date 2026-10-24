@@ -5,7 +5,8 @@ import { PixelAsset } from '../components/PixelAsset'
 import { SkillIcon } from '../components/SkillIcon'
 import { SpecialEffectIcon } from '../components/SpecialEffectIcon'
 import { AppShell, Panel, ScreenHeader } from '../components/Ui'
-import { SUBTYPE_LABELS, canEquip, discardItem, equipItem, isEquipped, itemBonuses, sortAndFilterInventory, toggleFavorite, unequipSlot, type EquipmentCategory, type EquipmentItem, type EquipmentSlots, type PlayerState } from '../game/player'
+import { SUBTYPE_LABELS, canEquip, discardItem, equipItem, isEquipped, itemBonuses, toggleFavorite, unequipSlot, type EquipmentCategory, type EquipmentItem, type EquipmentSlots, type PlayerState, type SkillId, type SpecialEffectId } from '../game/player'
+import { filterInventory, type InventoryFilter, type InventorySort } from '../game/inventoryView'
 import { EFFECT_LABELS, describeSpecialEffect } from '../game/effectLevels'
 import { SKILLS, describeSkill } from '../game/skills'
 
@@ -41,19 +42,32 @@ export function ItemDetail({ item, player, readOnly, inspectionOnly = false, onC
 }
 
 export function EquipmentScreen({ player, readOnly, onChange, onBack }: { player: PlayerState; readOnly: boolean; onChange: (player: PlayerState) => void; onBack: () => void }) {
-  const [category, setCategory] = useState<EquipmentCategory>('weapon')
-  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<InventoryFilter>({ category: 'weapon', query: '', subtype: '', minLevel: null, maxLevel: null, hasSkill: false, hasEffect: false, skill: '', effect: '', favoritesOnly: false, sort: 'levelDesc' })
+  const updateFilter = (change: Partial<InventoryFilter>) => setFilter((current) => ({ ...current, ...change }))
   const [selected, setSelected] = useState<string | null>(null)
-  const items = sortAndFilterInventory(player, category, query)
+  const items = filterInventory(player, filter)
   const selectedItem = player.inventory.find((item) => item.id === selected) ?? null
+  const subtypeOptions = Object.entries(SUBTYPE_LABELS).filter(([id]) => filter.category === 'weapon' ? ['sword', 'spear', 'bow', 'shortStaff', 'longStaff'].includes(id) : filter.category === 'armor' ? ['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'].includes(id) : id === 'commonAccessory')
   return <AppShell>
     <ScreenHeader title="装備・所持品" subtitle={readOnly ? '探索中：閲覧のみ' : '町：装備を変更可能'} onBack={onBack} />
     <div className="section-heading"><h2>現在の装備</h2></div>
-    <div className="equipment-grid">{slots.map((slot) => { const equipped = player.inventory.find((item) => item.id === player.equipment[slot.id]); return <button type="button" className="panel equipment-slot" key={slot.id} disabled={readOnly || !equipped} onClick={() => onChange(unequipSlot(player, slot.id))}><EquipmentImage item={equipped} fallbackIcon={slot.icon} /><small>{slot.label}</small><strong>{equipped?.name ?? 'なし'}</strong>{!readOnly && equipped && <em>タップで解除</em>}</button> })}</div>
+    <div className="equipment-grid">{slots.map((slot) => { const equipped = player.inventory.find((item) => item.id === player.equipment[slot.id]); return <button type="button" className="panel equipment-slot" key={slot.id} disabled={readOnly || !equipped} onClick={() => onChange(unequipSlot(player, slot.id))}><EquipmentImage item={equipped} fallbackIcon={slot.icon} /><small>{slot.label}</small><strong>{equipped?.name ?? 'なし'}</strong>{equipped && <b className="inventory-item__level">Lv.{equipped.level}</b>}{equipped && <span className="equipment-slot__effects">{equipped.skills.map((id) => <span className="effect-badge" key={id} title={`スキル：${SKILLS[id].name} Lv.${equipped.skillLevels[id] ?? 1}`}><SkillIcon skillId={id} /><b>{equipped.skillLevels[id] ?? 1}</b></span>)}{equipped.specialEffect && <span className="effect-badge" title={`特殊効果：${EFFECT_LABELS[equipped.specialEffect]} Lv.${equipped.specialEffectLevel ?? 1}`}><SpecialEffectIcon effect={equipped.specialEffect} /><b>{equipped.specialEffectLevel ?? 1}</b></span>}</span>}{!readOnly && equipped && <em>タップで解除</em>}</button> })}</div>
     <div className="section-heading inventory-heading"><h2>所持品</h2><span className="item-count">{player.inventory.length} items</span></div>
-    <input className="inventory-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="名前で検索" aria-label="装備名検索" />
-    <div className="category-tabs" role="tablist">{tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={category === tab.id} className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>{tab.label}</button>)}</div>
-    <div className="inventory-list">{items.map((item) => <button type="button" className="panel inventory-item" key={item.id} onClick={() => setSelected(item.id)}><EquipmentImage item={item} fallbackIcon={item.category} className="inventory-item__image" /><strong>{item.favorite ? '★ ' : ''}{item.name}</strong><span>Lv.{item.level}</span><small>{isEquipped(player, item.id) ? '装備中' : canEquip(player.job, item) ? '装備可能' : '装備不可'}</small></button>)}</div>
+    <input className="inventory-search" value={filter.query} onChange={(event) => updateFilter({ query: event.target.value })} placeholder="名前で検索" aria-label="装備名検索" />
+    <div className="category-tabs" role="tablist">{tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={filter.category === tab.id} className={filter.category === tab.id ? 'is-active' : ''} onClick={() => updateFilter({ category: tab.id, subtype: '' })}>{tab.label}</button>)}</div>
+    <details className="inventory-filters"><summary>絞り込み・並び替え</summary><div className="inventory-filter-grid">
+      <label>種類<select value={filter.subtype} onChange={(event) => updateFilter({ subtype: event.target.value })}><option value="">すべて</option>{subtypeOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+      <label>並び替え<select value={filter.sort} onChange={(event) => updateFilter({ sort: event.target.value as InventorySort })}><option value="levelDesc">Lv高い順</option><option value="levelAsc">Lv低い順</option><option value="statsDesc">能力値高い順</option><option value="statsAsc">能力値低い順</option><option value="skillLevel">スキル最高Lv順</option><option value="effectLevel">特殊効果最高Lv順</option><option value="newest">入手順（新）</option><option value="oldest">入手順（古）</option><option value="name">名前順</option></select></label>
+      <label>最低Lv<input type="number" min="1" value={filter.minLevel ?? ''} onChange={(event) => updateFilter({ minLevel: event.target.value === '' ? null : Math.max(1, Number(event.target.value)) })} /></label>
+      <label>最高Lv<input type="number" min="1" value={filter.maxLevel ?? ''} onChange={(event) => updateFilter({ maxLevel: event.target.value === '' ? null : Math.max(1, Number(event.target.value)) })} /></label>
+      <label>特定スキル<select value={filter.skill} onChange={(event) => updateFilter({ skill: event.target.value as SkillId | '' })}><option value="">すべて</option>{Object.entries(SKILLS).map(([id, skill]) => <option key={id} value={id}>{skill.name}</option>)}</select></label>
+      <label>特定特殊効果<select value={filter.effect} onChange={(event) => updateFilter({ effect: event.target.value as SpecialEffectId | '' })}><option value="">すべて</option>{Object.entries(EFFECT_LABELS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label><input type="checkbox" checked={filter.hasSkill} onChange={(event) => updateFilter({ hasSkill: event.target.checked })} /> スキルあり</label>
+      <label><input type="checkbox" checked={filter.hasEffect} onChange={(event) => updateFilter({ hasEffect: event.target.checked })} /> 特殊効果あり</label>
+      <label><input type="checkbox" checked={filter.favoritesOnly} onChange={(event) => updateFilter({ favoritesOnly: event.target.checked })} /> お気に入りのみ</label>
+      <button type="button" onClick={() => setFilter({ category: filter.category, query: '', subtype: '', minLevel: null, maxLevel: null, hasSkill: false, hasEffect: false, skill: '', effect: '', favoritesOnly: false, sort: 'levelDesc' })}>条件をリセット</button>
+    </div></details>
+    <div className="inventory-list">{items.map((item) => <button type="button" className="panel inventory-item" key={item.id} onClick={() => setSelected(item.id)}><EquipmentImage item={item} fallbackIcon={item.category} className="inventory-item__image" /><strong>{item.favorite ? '★ ' : ''}{item.name}</strong><b className="inventory-item__level">Lv.{item.level}</b><small>{isEquipped(player, item.id) ? '装備中' : canEquip(player.job, item) ? '装備可能' : '装備不可'}</small>{(item.skills.length > 0 || item.specialEffect) && <span className="inventory-item__effects">{item.skills.length > 0 && <span className="effect-group" aria-label="スキル">技 {item.skills.map((id) => <span className="effect-badge" key={id} title={`${SKILLS[id].name} Lv.${item.skillLevels[id] ?? 1}`}><SkillIcon skillId={id} /><b>{item.skillLevels[id] ?? 1}</b></span>)}</span>}{item.specialEffect && <span className="effect-group" aria-label="特殊効果">特 <span className="effect-badge" title={`${EFFECT_LABELS[item.specialEffect]} Lv.${item.specialEffectLevel ?? 1}`}><SpecialEffectIcon effect={item.specialEffect} /><b>{item.specialEffectLevel ?? 1}</b></span></span>}</span>}</button>)}</div>
     {selectedItem && <ItemDetail item={selectedItem} player={player} readOnly={readOnly} onClose={() => setSelected(null)} onChange={onChange} />}
   </AppShell>
 }

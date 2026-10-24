@@ -2,8 +2,8 @@
 export function createEquipmentFixture(legacy = false) {
   const item = (id, name, category, subtype, level, rarity, baseHp, basePhysical, baseMagic, skills = [], specialEffect = null, testOnly = legacy) => ({ id, name, category, subtype, level, rarity, baseHp, basePhysical, baseMagic, skills, specialEffect, favorite: false, testOnly })
   return [
-    item('initial-sword', '初心者用の剣', 'weapon', 'sword', 1, 'common', 0, 3, 0, [], null, false),
-    item('initial-armor', '初期軽鎧', 'armor', 'lightArmor', 1, 'common', 0, 0, 0, [], null, false),
+    item('initial-sword', '剣', 'weapon', 'sword', 1, 'common', 0, 3, 0, [], null, false),
+    item('initial-armor', '軽鎧', 'armor', 'lightArmor', 1, 'common', 0, 0, 0, [], null, false),
     item('test-spear', '試験用の槍', 'weapon', 'spear', 5, 'rare', 0, 7, 0, [], 'knockback'),
     item('test-bow', '試験用の弓', 'weapon', 'bow', 8, 'epic', 0, 9, 0, [], 'critical'),
     item('test-short-staff', '試験用の短杖', 'weapon', 'shortStaff', 5, 'rare', 0, 0, 8, [], 'lifesteal'),

@@ -15,8 +15,8 @@ type DungeonTileKey = keyof typeof dungeonTileAssetPaths
 function drawTile(context: CanvasRenderingContext2D, x: number, y: number, tile: TileType) {
   const left = x * TILE_SIZE; const top = y * TILE_SIZE
   const passable = ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile)
-  context.globalAlpha = passable ? .6 : .94
-  context.fillStyle = passable ? '#101010' : '#262626'
+  context.globalAlpha = passable ? .45 : .98
+  context.fillStyle = passable ? '#101010' : '#080808'
   context.fillRect(left, top, TILE_SIZE, TILE_SIZE)
   context.globalAlpha = 1
   if (!passable) {
@@ -73,9 +73,9 @@ function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Posi
   const stairImage = images.get(stairKey)
   if (stairImage?.complete && stairImage.naturalWidth > 0) context.drawImage(stairImage, stairLeft, stairTop, TILE_SIZE, TILE_SIZE)
   else { context.fillStyle = '#17191d'; context.fillRect(stairLeft + 3, stairTop + 3, 14, 14); context.fillStyle = '#f0d372'; context.fillRect(stairLeft + 5, stairTop + 5, 10, 3); context.fillRect(stairLeft + 7, stairTop + 9, 8, 3); context.fillRect(stairLeft + 9, stairTop + 13, 6, 3) }
-  if (chest) {
+  if (chest && !chest.opened) {
     const x = chest.position.x * TILE_SIZE; const y = chest.position.y * TILE_SIZE
-    const image = images.get(chest.opened ? 'chest_open' : 'chest_closed')
+    const image = images.get('chest_closed')
     if (image?.complete && image.naturalWidth > 0) context.drawImage(image, x, y, TILE_SIZE, TILE_SIZE)
     else {
       context.fillStyle = '#2c180b'; context.fillRect(x + 2, y + 5, 16, 13)
@@ -87,12 +87,21 @@ function drawMap(context: CanvasRenderingContext2D, map: ForestMap, stairs: Posi
   const left = player.x * TILE_SIZE; const top = player.y * TILE_SIZE
   context.fillStyle = '#f5d76e'; context.fillRect(left + 1, top + 1, TILE_SIZE - 2, TILE_SIZE - 2); context.fillStyle = '#111'; context.fillRect(left + 3, top + 3, TILE_SIZE - 6, TILE_SIZE - 6)
   if (playerImage?.complete && playerImage.naturalWidth > 0) context.drawImage(playerImage, left + 2, top + 2, TILE_SIZE - 4, TILE_SIZE - 4)
+  // キャラクターより前面にも危険を示す。中央は薄く、輪郭は濃くして絵を隠さない。
+  for (let y = 0; y < MAP_SIZE; y += 1) for (let x = 0; x < MAP_SIZE; x += 1) {
+    if (!isInView(player, { x, y }) || getWarningLevel(enemies, { x, y }) !== 'red') continue
+    const warningLeft = x * TILE_SIZE; const warningTop = y * TILE_SIZE
+    context.fillStyle = 'rgba(245, 40, 40, .17)'
+    context.fillRect(warningLeft + 2, warningTop + 2, TILE_SIZE - 4, TILE_SIZE - 4)
+    context.strokeStyle = 'rgba(255, 65, 65, .9)'; context.lineWidth = 2
+    context.strokeRect(warningLeft + 1, warningTop + 1, TILE_SIZE - 2, TILE_SIZE - 2)
+  }
   context.restore()
 }
 
-interface DungeonMapCanvasProps { visualSeed: number; chest: LootChest | null; map: ForestMap; stairs: Position; themeName: string; floor: number; player: Position; playerJob: JobId; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
+interface DungeonMapCanvasProps { visualSeed: number; chest: LootChest | null; map: ForestMap; stairs: Position; themeName: string; floor: number; turn: number; player: Position; playerJob: JobId; enemies: EnemyState[]; targetCells: Position[]; selectedEnemyId: string | null; onCellClick: (position: Position) => void }
 
-export function DungeonMapCanvas({ visualSeed, chest, map, stairs, themeName, floor, player, playerJob, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
+export function DungeonMapCanvas({ visualSeed, chest, map, stairs, themeName, floor, turn, player, playerJob, enemies, targetCells, selectedEnemyId, onCellClick }: DungeonMapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const theme: DungeonTheme = map.flat().includes('ruinsFloor') ? 'ruins' : map.flat().includes('castleFloor') ? 'castle' : 'forest'
   const redWarnings = enemies.filter((enemy) => getEnemyWarningLevel(enemy) === 'red').length
@@ -104,11 +113,13 @@ export function DungeonMapCanvas({ visualSeed, chest, map, stairs, themeName, fl
       canvas.dataset.loadedTileCount = String(Object.keys(dungeonTileAssetPaths).filter((key) => { const image = images.get(key); return image?.complete && image.naturalWidth > 0 }).length)
       canvas.dataset.stairsTile = getDungeonStairsVisual(theme, floor, map[stairs.y][stairs.x] === 'path')
       if (chest) {
-        const chestKey = chest.opened ? 'open' : 'closed'
-        const image = images.get(`chest_${chestKey}`)
         canvas.dataset.chestOpened = String(chest.opened)
-        canvas.dataset.chestAsset = chestAssetPaths[chestKey]
-        canvas.dataset.chestImageLoaded = String(Boolean(image?.complete && image.naturalWidth > 0))
+        if (chest.opened) { delete canvas.dataset.chestAsset; delete canvas.dataset.chestImageLoaded }
+        else {
+          const image = images.get('chest_closed')
+          canvas.dataset.chestAsset = chestAssetPaths.closed
+          canvas.dataset.chestImageLoaded = String(Boolean(image?.complete && image.naturalWidth > 0))
+        }
       } else {
         delete canvas.dataset.chestOpened; delete canvas.dataset.chestAsset; delete canvas.dataset.chestImageLoaded
       }
@@ -124,5 +135,5 @@ export function DungeonMapCanvas({ visualSeed, chest, map, stairs, themeName, fl
     const position = viewToMap(player, Math.floor((event.clientX - bounds.left) * VIEW_SIZE / bounds.width), Math.floor((event.clientY - bounds.top) * VIEW_SIZE / bounds.height))
     if (position) onCellClick(position)
   }
-  return <canvas ref={canvasRef} className="dungeon-map" data-view-size={VIEW_SIZE} data-attack-cells={JSON.stringify(targetCells)} data-camera-origin={JSON.stringify(cameraOrigin(player))} data-player={JSON.stringify(player)} data-visual-seed={visualSeed} width={CANVAS_SIZE} height={CANVAS_SIZE} data-chest={chest ? JSON.stringify(chest.position) : undefined} data-yellow-warnings={0} data-red-warnings={redWarnings} data-stairs={`${stairs.x},${stairs.y}`} data-enemies={JSON.stringify(enemies.map((enemy) => ({ id: enemy.id, x: enemy.position.x, y: enemy.position.y, hp: enemy.hp })))} data-layout={map.flat().map((tile) => ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile) ? '0' : '1').join('')} onClick={handleClick} role="img" aria-label={`20×20マスの${themeName}マップ。プレイヤー位置は横${player.x + 1}、縦${player.y + 1}。敵${enemies.length}体`} />
+  return <canvas ref={canvasRef} className="dungeon-map" data-turn={turn} data-view-size={VIEW_SIZE} data-attack-cells={JSON.stringify(targetCells)} data-camera-origin={JSON.stringify(cameraOrigin(player))} data-player={JSON.stringify(player)} data-visual-seed={visualSeed} width={CANVAS_SIZE} height={CANVAS_SIZE} data-chest={chest ? JSON.stringify(chest.position) : undefined} data-yellow-warnings={0} data-red-warnings={redWarnings} data-stairs={`${stairs.x},${stairs.y}`} data-enemies={JSON.stringify(enemies.map((enemy) => ({ id: enemy.id, x: enemy.position.x, y: enemy.position.y, hp: enemy.hp })))} data-layout={map.flat().map((tile) => ['grass', 'path', 'ruinsFloor', 'castleFloor'].includes(tile) ? '0' : '1').join('')} onClick={handleClick} role="img" aria-label={`20×20マスの${themeName}マップ。プレイヤー位置は横${player.x + 1}、縦${player.y + 1}。敵${enemies.length}体`} />
 }

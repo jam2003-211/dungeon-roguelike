@@ -27,14 +27,15 @@ export function Panel({ children, className = '', ...sectionProps }: HTMLAttribu
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon: IconName
+  imageSrc?: string
   label: string
   detail?: string
 }
 
-export function ActionButton({ icon, label, detail, className = '', ...buttonProps }: ActionButtonProps) {
+export function ActionButton({ icon, imageSrc, label, detail, className = '', ...buttonProps }: ActionButtonProps) {
   return (
     <button type="button" className={`action-button ${className}`} {...buttonProps}>
-      <span className="action-button__icon"><Icon name={icon} size="large" /></span>
+      <span className="action-button__icon">{imageSrc ? <img src={imageSrc} alt="" /> : <Icon name={icon} size="large" />}</span>
       <span className="action-button__copy">
         <strong>{label}</strong>
         {detail && <small>{detail}</small>}

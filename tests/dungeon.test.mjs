@@ -16,7 +16,7 @@ const runUrl = url((await transpile('../src/game/dungeonRun.ts')).replace("'./ba
 const dungeon = await import(dungeonUrl); const dungeonRun = await import(runUrl); const player = await import(playerUrl); const combat = await import(combatUrl)
 
 function seeded(seed) { let value = seed >>> 0; return () => { value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296 } }
-function withFloor(total, seed = 1) { const next = seeded(seed); let first = true; return () => { if (first) { first = false; return (total - .5) / 15 } return next() } }
+function withFloor(total, seed = 1) { const next = seeded(seed); let first = true; return () => { if (first) { first = false; return (total - .5) / 10 } return next() } }
 function positionKey(position) { return `${position.x},${position.y}` }
 
 test('外観シードは生成データのJSON往復で保持され、地形・通行判定を変えない', () => {
@@ -40,8 +40,8 @@ test('生成Lv入力は正の整数だけを受け入れ、極端な値を拒否
   assert.equal(dungeon.parseDungeonLevel('1'), 1); assert.equal(dungeon.parseDungeonLevel('1000000'), 1000000)
 })
 
-test('階層数1・2・15の境界と20×20マップを生成する', () => {
-  for (const total of [1, 2, 15]) {
+test('新規階層数1・2・10の境界と20×20マップを生成する', () => {
+  for (const total of [1, 2, 10]) {
     const generated = dungeon.createDungeon(10, 'forest', withFloor(total, 100 + total))
     assert.equal(generated.totalFloors, total); assert.equal(generated.floors.length, total)
     for (const floor of generated.floors) { assert.equal(floor.map.length, 20); assert.ok(floor.map.every((row) => row.length === 20)); assert.equal(floor.map.flat().length, 400) }
@@ -52,7 +52,7 @@ test('100回の小部屋生成で全敵種・到達可能性・配置・敵数�
   const appearedKinds = new Set()
   for (let seed = 1; seed <= 100; seed += 1) {
     const generated = dungeon.createDungeon(12, ['forest', 'ruins', 'castle'][seed % 3], seeded(seed))
-    assert.ok(generated.totalFloors >= 1 && generated.totalFloors <= 15)
+    assert.ok(generated.totalFloors >= 1 && generated.totalFloors <= 10)
     assert.equal(generated.enemyKinds.length, 6)
     assert.equal(new Set(generated.enemyKinds).size, 6)
     assert.ok(generated.enemyKinds.includes(generated.bossKind)); assert.equal(dungeon.validateDungeon(generated), true)

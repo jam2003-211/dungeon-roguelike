@@ -36,14 +36,28 @@ test('自動対象は武器とスキルの射程・障害物・視線を維持�
   assert.equal(battle.getPlayerAttackCells(s.player, { x: 10, y: 10 }, map).length, 4)
   assert.notDeepEqual(battle.getPlayerAttackCells(s.player, { x: 9, y: 10 }, map), battle.getPlayerAttackCells(s.player, { x: 10, y: 10 }, map))
 })
-for (const id of Object.keys(skills.SKILLS)) test(`12種の自動発動条件と単一ターン：${id}`, () => {
+for (const id of Object.keys(skills.SKILLS).filter((id) => !['smallHeal', 'largeHeal', 'dash'].includes(id))) test(`自動発動条件と単一ターン：${id}`, () => {
   const s = state([id])
-  if (id.endsWith('Heal')) { s.player.currentHp = 20; s.combat.playerHp = 20 }
-  if (id === 'guard' || id === 'dash') warn(s)
+  if (id === 'guard') warn(s)
   const choice = auto.chooseAutoAction(s, map)
   assert.equal(choice.skillId, id)
   const next = auto.performAutoAttack(s, map)
   assert.equal(next.combat.turn, 1); assert.equal(next.cooldowns[id], skills.SKILLS[id].cooldown)
+})
+test('回復とダッシュは自動選択せず、手動時だけ有効な行動でターンとCDを使う', () => {
+  const healing = state(['smallHeal', 'largeHeal']); healing.combat.enemies = []
+  assert.equal(auto.chooseAutoAction(healing, map), null)
+  assert.equal(battle.useSkill(healing, 'smallHeal', undefined, map), healing)
+  healing.player.currentHp = 20; healing.combat.playerHp = 20
+  const healed = battle.useSkill(healing, 'smallHeal', undefined, map)
+  assert.equal(healed.combat.turn, 1); assert.equal(healed.cooldowns.smallHeal, skills.SKILLS.smallHeal.cooldown)
+  const dashing = state(['dash']); dashing.combat.enemies = []
+  assert.equal(auto.chooseAutoAction(dashing, map), null)
+  const blocked = structuredClone(map); blocked[10][11] = 'tree'
+  assert.equal(battle.useSkill(dashing, 'dash', { x: 12, y: 10 }, blocked), dashing)
+  const moved = battle.useSkill(dashing, 'dash', { x: 12, y: 10 }, map)
+  assert.equal(moved.combat.turn, 1); assert.deepEqual(moved.combat.position, { x: 12, y: 10 })
+  assert.equal(moved.cooldowns.dash, skills.SKILLS.dash.cooldown)
 })
 test('満タン回復・重複状態異常・対象のない範囲攻撃を無駄撃ちしない', () => {
   const s = state(['smallHeal', 'guard', 'dash', 'shockwave', 'flame']); s.combat.enemies = []

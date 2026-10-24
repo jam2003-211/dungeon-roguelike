@@ -39,12 +39,12 @@ export interface CombatState {
 export const PLAYER_PHYSICAL_ATTACK = 12
 
 export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
-  goblin: { kind: 'goblin', name: 'ゴブリン', baseHp: 20, baseAttack: 15, detectionRange: 4, preparationTurns: 2 },
-  boar: { kind: 'boar', name: 'イノシシ', baseHp: 20, baseAttack: 20, detectionRange: 5, preparationTurns: 3 },
-  slimeKing: { kind: 'slimeKing', name: 'スライムキング', baseHp: 30, baseAttack: 10, detectionRange: 4, preparationTurns: 3 },
-  cyclopsBat: { kind: 'cyclopsBat', name: '一つ目コウモリ', baseHp: 10, baseAttack: 15, detectionRange: 7, preparationTurns: 2 },
-  stoneGolem: { kind: 'stoneGolem', name: 'ストーンゴーレム', baseHp: 30, baseAttack: 15, detectionRange: 5, preparationTurns: 3 },
-  ghost: { kind: 'ghost', name: 'ゴースト', baseHp: 10, baseAttack: 20, detectionRange: 8, preparationTurns: 3 },
+  goblin: { kind: 'goblin', name: 'ゴブリン', baseHp: 20, baseAttack: 15, detectionRange: 4, preparationTurns: 1 },
+  boar: { kind: 'boar', name: 'イノシシ', baseHp: 20, baseAttack: 20, detectionRange: 5, preparationTurns: 2 },
+  slimeKing: { kind: 'slimeKing', name: 'スライムキング', baseHp: 30, baseAttack: 10, detectionRange: 4, preparationTurns: 2 },
+  cyclopsBat: { kind: 'cyclopsBat', name: '一つ目コウモリ', baseHp: 10, baseAttack: 15, detectionRange: 7, preparationTurns: 1 },
+  stoneGolem: { kind: 'stoneGolem', name: 'ストーンゴーレム', baseHp: 30, baseAttack: 15, detectionRange: 5, preparationTurns: 2 },
+  ghost: { kind: 'ghost', name: 'ゴースト', baseHp: 10, baseAttack: 20, detectionRange: 8, preparationTurns: 2 },
 }
 
 const directionOffsets: Readonly<Record<Direction, Position>> = {

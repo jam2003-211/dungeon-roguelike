@@ -81,7 +81,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     await page.waitFor("document.querySelector('.dungeon-map')?.dataset.viewSize==='11'", '探索を再開できません')
     const read = () => page.evaluate(`(${database})()`)
     const saved = (condition) => page.waitFor(`(async()=>{if(document.querySelector('.save-status').dataset.saving!=='false')return false;const data=await (${database})();return ${condition}})()`, '自動保存が完了しません')
-    const move = async (label) => { await page.click(label+'へ移動'); await saved("data.run.battle.combat.turn===Number(document.querySelector('.turn-display strong').textContent)") }
+    const move = async (label) => { await page.click(label+'へ移動'); await saved("data.run.battle.combat.turn===Number(document.querySelector('.dungeon-map').dataset.turn)") }
     // 実操作で敵へ接近する。経路だけテスト側で計算し、状態変更はすべてゲームUIに任せる。
     const plan = (data, targets, distance = 1) => {
       const combat=data.run.battle.combat, origin=combat.position, map=data.stocks[0].dungeon.floors[data.run.floor-1].map
@@ -117,7 +117,7 @@ async function checkBuild(base, outDir, profileDirectory) {
       await move(direction)
     }
     const clickCell=async(position)=>page.evaluate(`(()=>{const canvas=document.querySelector('.dungeon-map'),origin=JSON.parse(canvas.dataset.cameraOrigin),bounds=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:bounds.left+(${position.x}-origin.x+.5)*bounds.width/11,clientY:bounds.top+(${position.y}-origin.y+.5)*bounds.height/11}))})()`)
-    await page.click('開ける'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
+    await page.click('拾う'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
     const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,4)
     await page.reload();await page.click('探索を再開');await page.waitFor("document.querySelector('.dungeon-map')",'オフライン再起動に失敗')
     assert.deepEqual(await read(),offlineSave);await clickCell(chest.position);assert.deepEqual(await read(),offlineSave,'二重報酬が発生しました')

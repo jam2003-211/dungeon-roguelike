@@ -22,8 +22,8 @@ function openMap(obstacles = []) {
 test('敵6種類の基礎能力値・索敵距離・準備ターンが定義どおり', () => {
   const actual = Object.values(combat.ENEMY_DEFINITIONS).map(({ name, baseHp, baseAttack, detectionRange, preparationTurns }) => [name, baseHp, baseAttack, detectionRange, preparationTurns])
   assert.deepEqual(actual, [
-    ['ゴブリン', 20, 15, 4, 2], ['イノシシ', 20, 20, 5, 3], ['スライムキング', 30, 10, 4, 3],
-    ['一つ目コウモリ', 10, 15, 7, 2], ['ストーンゴーレム', 30, 15, 5, 3], ['ゴースト', 10, 20, 8, 3],
+    ['ゴブリン', 20, 15, 4, 1], ['イノシシ', 20, 20, 5, 2], ['スライムキング', 30, 10, 4, 2],
+    ['一つ目コウモリ', 10, 15, 7, 1], ['ストーンゴーレム', 30, 15, 5, 2], ['ゴースト', 10, 20, 8, 2],
   ])
 })
 
@@ -60,7 +60,7 @@ test('敵は同じマスへ移動せず、開始位置を交換しない', () =>
 })
 
 test('準備中は警告なし、攻撃1ターン前だけ赤を表示して固定範囲を攻撃する', () => {
-  const enemy = { ...combat.createEnemy('e', 'goblin', 1, { x: 5, y: 5 }), discovered: true }
+  const enemy = { ...combat.createEnemy('e', 'boar', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
   const preparing = combat.processEnemyTurn(state, openMap())
   assert.deepEqual(preparing.enemies[0].position, enemy.position); assert.equal(preparing.enemies[0].warning.remaining, 2)
@@ -74,17 +74,15 @@ test('準備中は警告なし、攻撃1ターン前だけ赤を表示して固�
   assert.equal(resolved.playerHp, 100); assert.equal(resolved.enemies[0].warning, null)
 })
 
-test('3ターン準備・重複警告・気絶・撃破でも赤は次行動で攻撃する敵だけ', () => {
+test('短縮後の準備・重複警告・気絶・撃破でも赤は次行動で攻撃する敵だけ', () => {
   const enemy = { ...combat.createEnemy('boar', 'boar', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 0, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
   const prepared = combat.processEnemyTurn(state, openMap())
-  assert.equal(prepared.enemies[0].warning.remaining, 3)
+  assert.equal(prepared.enemies[0].warning.remaining, 2)
   assert.equal(combat.getWarningLevel(prepared.enemies, state.position), null)
   const waiting = combat.processEnemyTurn(prepared, openMap())
-  assert.equal(waiting.enemies[0].warning.remaining, 2)
-  assert.equal(combat.getWarningLevel(waiting.enemies, state.position), null)
-  const ready = combat.processEnemyTurn(waiting, openMap())
-  assert.equal(ready.enemies[0].warning.remaining, 1)
+  assert.equal(waiting.enemies[0].warning.remaining, 1)
+  const ready = waiting
   assert.equal(combat.getWarningLevel([...waiting.enemies, ...ready.enemies], state.position), 'red')
   assert.equal(combat.getWarningLevel([{ ...ready.enemies[0], hp: 0 }], state.position), null)
   assert.equal(combat.getWarningLevel([{ ...ready.enemies[0], statuses: { poison: 0, burn: 0, slow: 0, stun: 1 } }], state.position), null)
@@ -96,8 +94,23 @@ test('3ターン準備・重複警告・気絶・撃破でも赤は次行動で�
 test('固定予告内に残ると攻撃力ぶんダメージを受ける', () => {
   const enemy = { ...combat.createEnemy('e', 'goblin', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
-  const yellow = combat.processEnemyTurn(state, openMap()); const red = combat.processEnemyTurn(yellow, openMap()); const hit = combat.processEnemyTurn(red, openMap())
+  const red = combat.processEnemyTurn(state, openMap()); const hit = combat.processEnemyTurn(red, openMap())
   assert.equal(hit.playerHp, 85)
+})
+
+test('12行動あたりの攻撃回数が増え、どの命中にも直前の赤警告がある', () => {
+  for (const [kind, expected] of [['goblin', 6], ['boar', 4]]) {
+    const enemy = { ...combat.createEnemy(kind, kind, 1, { x: 5, y: 5 }), discovered: true }
+    let state = { position: { x: 5, y: 6 }, turn: 0, playerHp: 1000, playerMaxHp: 1000, enemies: [enemy], finished: false }
+    let hits = 0
+    for (let turn = 0; turn < 12; turn += 1) {
+      const warned = combat.getWarningLevel(state.enemies, state.position) === 'red'
+      const next = combat.processEnemyTurn(state, openMap())
+      if (next.playerHp < state.playerHp) { hits++; assert.equal(warned, true, `${kind} が予告なしで攻撃`) }
+      state = next
+    }
+    assert.equal(hits, expected)
+  }
 })
 
 test('通常攻撃は隣接空マスでもターンを消費し、敵HPを12減らして撃破する', () => {

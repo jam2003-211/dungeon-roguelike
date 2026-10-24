@@ -4,14 +4,15 @@ import { captureRun, restoreBattle } from './persistence/savedRun'
 import { useSaveGame } from './persistence/useSaveGame'
 import type { SaveData } from './persistence/saveData'
 import { useCallback, useEffect, useState } from 'react'
-import { attackWithWeapon, createBattleState, moveBattlePlayer, type BattleState } from './game/battle'
+import { attackWithWeapon, createBattleState, moveBattlePlayer, useSkill, type BattleState } from './game/battle'
 import { performAutoAttack } from './game/autoCombat'
 import { createDungeon, createDungeonStocks, replaceDungeonStock, updateStockProgress, type DungeonStockId } from './game/dungeon'
 import { advanceDungeonRun, startDungeonRun } from './game/dungeonRun'
 import { createLootState, openLootChest, resolveEnemyLoot } from './game/loot'
 import type { Direction } from './game/exploration'
-import { isPassable } from './game/forestMap'
-import { appraiseAllTreasures, appraiseTreasure, calculateStats, changeJob, createPlayerState, recoverInTown, type JobId, type PlayerState, type UnidentifiedTreasure } from './game/player'
+import { isPassable, type Position } from './game/forestMap'
+import { appraiseAllTreasures, appraiseTreasure, availableSkillLevel, calculateStats, changeJob, createPlayerState, recoverInTown, type JobId, type PlayerState, type SkillId, type UnidentifiedTreasure } from './game/player'
+import { SKILLS } from './game/skills'
 import { createInitialNavigation, getPreviousNavigation, navigate, readNavigationState, type NavigationState, type ScreenId } from './navigation'
 import { DungeonScreen } from './screens/DungeonScreen'
 import { EquipmentScreen } from './screens/EquipmentScreen'
@@ -43,16 +44,17 @@ function App() {
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null)
   const [exploration, setExploration] = useState<BattleState>(() => createBattleState(createPlayerState()))
   const [explorationMenuOpen, setExplorationMenuOpen] = useState(false)
+  const [announceInitialFinalFloor, setAnnounceInitialFinalFloor] = useState(false)
   const [result, setResult] = useState({ turn: 0, experience: 0, floor: 1, startLevel: 1, endLevel: 1, kind: '任意帰還' as ResultKind, dungeonName: '', items: [] as UnidentifiedTreasure[] })
   const restoreSave = useCallback((data: SaveData, enterGame: boolean) => {
-    setPlayer(data.player); setStocks(data.stocks)
+    setPlayer(data.player); setStocks(data.stocks); setAnnounceInitialFinalFloor(false)
     setActiveRun(enterGame && data.run ? { stockId: data.run.stockId, floor: data.run.floor, startLevel: data.run.startLevel } : null)
     setExploration(enterGame && data.run ? restoreBattle(data.player, data.run) : createBattleState(data.player)); setExplorationMenuOpen(false)
     if (enterGame) { const next: NavigationState = { current: data.run ? 'exploration' : 'town', previous: ['title'] }; window.history.replaceState(next, ''); setNavigation(next) }
   }, [])
   const resetAfterDelete = useCallback(() => {
     const freshPlayer = createPlayerState(); const freshStocks = createDungeonStocks()
-    setPlayer(freshPlayer); setStocks(freshStocks); setActiveRun(null)
+    setPlayer(freshPlayer); setStocks(freshStocks); setActiveRun(null); setAnnounceInitialFinalFloor(false)
     setExploration(createBattleState(freshPlayer)); setExplorationMenuOpen(false)
     window.history.replaceState(initialNavigation, ''); setNavigation(initialNavigation)
     return { player: freshPlayer, stocks: freshStocks, run: null }
@@ -96,6 +98,7 @@ function App() {
     const run = startDungeonRun(player, stock.dungeon)
     setExploration({ ...run.battle, loot: createLootState(stock.dungeon, rewardRandom) })
     setActiveRun({ stockId, floor: run.currentFloor, startLevel: player.level }); setExplorationMenuOpen(false)
+    setAnnounceInitialFinalFloor(stock.dungeon.totalFloors === 1)
     setStocks((current) => updateStockProgress(current, stockId, 1, stock.dungeon!.totalFloors === 1))
     const next = navigate(navigation, 'exploration'); window.history.pushState(next, ''); setNavigation(next)
   }, [navigation, player, stocks])
@@ -108,6 +111,13 @@ function App() {
   }, [activeRun, activeDungeon])
   const handleMove = useCallback((direction: Direction) => { if (activeFloor) applyBattleAction((current) => moveBattlePlayer(current, direction, activeFloor.map)) }, [activeFloor, applyBattleAction])
   const handleAttack = useCallback(() => { if (activeFloor) applyBattleAction((current) => performAutoAttack(current, activeFloor.map)) }, [activeFloor, applyBattleAction])
+  const handleManualSkill = useCallback((skillId: SkillId, target?: Position) => {
+    if (!activeFloor || !['smallHeal', 'largeHeal', 'dash'].includes(skillId)) return
+    applyBattleAction((current) => {
+      const next = useSkill(current, skillId, target, activeFloor.map)
+      return next === current ? current : { ...next, actionNotice: { turn: next.combat.turn, label: `${SKILLS[skillId].name} Lv.${availableSkillLevel(current.player, skillId)}`, skillId } }
+    })
+  }, [activeFloor, applyBattleAction])
 
   const showResult = useCallback((kind: ResultKind, cleared: boolean) => {
     if (!activeRun) return
@@ -164,7 +174,7 @@ function App() {
         if (!chest) return current
         const position = chest.position
         return isPassable(activeFloor.map, position) && !current.combat.enemies.some((enemy) => enemy.position.x === position.x && enemy.position.y === position.y) ? { ...current, combat: { ...current.combat, position } } : current
-      })} battle={exploration} map={activeFloor.map} stairs={activeFloor.stairs} themeName={activeStock.name} dungeonLevel={activeDungeon.level} floor={activeRun.floor} totalFloors={activeDungeon.totalFloors} totalFloorsKnown={activeStock.totalFloorsKnown} menuOpen={explorationMenuOpen} onMove={handleMove} onAttack={handleAttack} onNextFloor={nextFloor} onMenuOpenChange={setExplorationMenuOpen} onOpenStatus={() => openScreen('status')} onOpenEquipment={() => openScreen('equipment')} onReturn={() => showResult('任意帰還', false)} onClearNotice={() => setExploration((current) => ({ ...current, levelNotices: [] }))} onTestReachStairs={() => setExploration((current) => ({ ...current, combat: { ...current.combat, position: { ...activeFloor.stairs } } }))} onTestApproachEnemy={() => setExploration((current) => { const target = current.combat.enemies.find((enemy) => !enemy.isBoss) ?? current.combat.enemies[0]; if (!target) return current; const offsets = [{ x: 0, y: -1 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }]; const position = offsets.map((offset) => ({ x: target.position.x + offset.x, y: target.position.y + offset.y })).find((candidate) => isPassable(activeFloor.map, candidate) && !current.combat.enemies.some((enemy) => enemy.id !== target.id && enemy.position.x === candidate.x && enemy.position.y === candidate.y)); return position ? { ...current, combat: { ...current.combat, position } } : current })} onTestDefeatBoss={() => applyBattleAction((current) => {
+      })} battle={exploration} map={activeFloor.map} stairs={activeFloor.stairs} themeName={activeStock.name} dungeonLevel={activeDungeon.level} floor={activeRun.floor} totalFloors={activeDungeon.totalFloors} totalFloorsKnown={activeStock.totalFloorsKnown} menuOpen={explorationMenuOpen} onMove={handleMove} onAttack={handleAttack} onUseSkill={handleManualSkill} announceInitialFinalFloor={announceInitialFinalFloor} onFinalFloorAnnounced={() => setAnnounceInitialFinalFloor(false)} onNextFloor={nextFloor} onMenuOpenChange={setExplorationMenuOpen} onOpenStatus={() => openScreen('status')} onOpenEquipment={() => openScreen('equipment')} onReturn={() => showResult('任意帰還', false)} onClearNotice={() => setExploration((current) => ({ ...current, levelNotices: [] }))} onTestReachStairs={() => setExploration((current) => ({ ...current, combat: { ...current.combat, position: { ...activeFloor.stairs } } }))} onTestApproachEnemy={() => setExploration((current) => { const target = current.combat.enemies.find((enemy) => !enemy.isBoss) ?? current.combat.enemies[0]; if (!target) return current; const offsets = [{ x: 0, y: -1 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }]; const position = offsets.map((offset) => ({ x: target.position.x + offset.x, y: target.position.y + offset.y })).find((candidate) => isPassable(activeFloor.map, candidate) && !current.combat.enemies.some((enemy) => enemy.id !== target.id && enemy.position.x === candidate.x && enemy.position.y === candidate.y)); return position ? { ...current, combat: { ...current.combat, position } } : current })} onTestDefeatBoss={() => applyBattleAction((current) => {
         const boss = current.combat.enemies.find((enemy) => enemy.isBoss)
         if (!boss) return current
         // 開発用の撃破操作も通常攻撃と共通の経験値・ドロップ経路を通す。

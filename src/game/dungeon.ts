@@ -172,7 +172,7 @@ function createFloor(theme: DungeonTheme, floor: number, totalFloors: number, le
 
 export function createDungeon(level: number, theme: DungeonTheme, random: () => number = Math.random): GeneratedDungeon {
   if (!Number.isSafeInteger(level) || level < 1 || level > MAX_DUNGEON_LEVEL) throw new Error('ダンジョンLvが不正です。')
-  const totalFloors = integer(random, 1, 15)
+  const totalFloors = integer(random, 1, 10)
   const enemyKinds = shuffled(ALL_ENEMIES, random)
   const bossKind = enemyKinds[integer(random, 0, enemyKinds.length - 1)]
   const featuredCategory = CATEGORIES[integer(random, 0, CATEGORIES.length - 1)]

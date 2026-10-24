@@ -18,7 +18,7 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   const visible = () => evaluate(`(() => { const canvas = document.querySelector('.dungeon-map'); return {
     player: canvas.dataset.player, enemies: canvas.dataset.enemies, layout: canvas.dataset.layout, seed: canvas.dataset.visualSeed,
     chest: canvas.dataset.chest, opened: canvas.dataset.chestOpened, yellow: canvas.dataset.yellowWarnings, red: canvas.dataset.redWarnings,
-    turn: document.querySelector('.turn-display strong').textContent, hp: document.querySelector('.exploration-player > span:nth-of-type(2)').textContent,
+    turn: document.querySelector('.dungeon-map').dataset.turn, hp: document.querySelector('.exploration-player > span:nth-of-type(2)').textContent,
     skills: [...document.querySelectorAll('[data-skill-id]')].map((button) => [button.dataset.skillId, button.querySelector('small').textContent])
   }; })()`)
   const move = async () => {
@@ -37,9 +37,9 @@ export async function runResumeBrowserChecks({ evaluate, command, clickButton, c
   assert.notEqual((await visible()).enemies, beforeAttack.enemies)
   await approach('開発テスト：宝箱へ接近')
   const chest = await evaluate("JSON.parse(document.querySelector('.dungeon-map').dataset.chest)")
-  await clickButton('開ける')
+  await clickButton('拾う')
   await waitFor("document.querySelector('.dungeon-map').dataset.chestOpened === 'true'", '宝箱が開封されません。')
-  await waitSaved("data.run?.battle.loot.chests.some((chest) => chest.opened) && data.run.battle.combat.turn === Number(document.querySelector('.turn-display strong').textContent)")
+  await waitSaved("data.run?.battle.loot.chests.some((chest) => chest.opened) && data.run.battle.combat.turn === Number(document.querySelector('.dungeon-map').dataset.turn)")
   const saved = await read(); const before = await visible()
   assert.ok(saved.run); assert.ok(saved.run.battle.loot.items.length > 0)
   assert.ok(Object.values(saved.run.battle.cooldowns).some((turns)=>turns>0))

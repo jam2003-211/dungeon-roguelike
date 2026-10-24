@@ -53,7 +53,8 @@ export function validSavedRun(value: unknown, player: PlayerState, stocks: Dunge
     occupied.add(key); living.add(value.id)
     if (value.warning !== null) {
       const warning = value.warning
-      if (!object(warning) || !int(warning.remaining, 1, ENEMY_DEFINITIONS[spawn.kind].preparationTurns) || !pos(warning.target)
+      // 旧版で保存された準備残り(最大3)も、攻撃予告とともに引き継ぐ。
+      if (!object(warning) || !int(warning.remaining, 1, ENEMY_DEFINITIONS[spawn.kind].preparationTurns + 1) || !pos(warning.target)
         || !['up', 'left', 'right', 'down'].includes(warning.direction as string) || !Array.isArray(warning.cells) || !warning.cells.every(pos)) return false
       const expected = getAttackCells(value as unknown as EnemyState, warning.direction as 'up', warning.target, floor.map)
       if (JSON.stringify(expected) !== JSON.stringify(warning.cells)) return false
@@ -63,7 +64,11 @@ export function validSavedRun(value: unknown, player: PlayerState, stocks: Dunge
   const spawns = dungeon.floors.filter((candidate) => candidate.floor <= floor.floor).flatMap((candidate) => candidate.enemies)
   if (new Set(resolved).size !== resolved.length || !resolved.every((id) => typeof id === 'string' && spawns.some((spawn) => spawn.id === id) && !living.has(id))) return false
   if (!floor.enemies.every((spawn) => living.has(spawn.id) || resolved.includes(spawn.id))) return false
-  if (battle.experienceEarned !== spawns.filter((spawn) => resolved.includes(spawn.id)).reduce((sum, spawn) => sum + enemyExperience(spawn.level, spawn.isBoss), 0)) return false
+  const defeated = spawns.filter((spawn) => resolved.includes(spawn.id))
+  const minimumExperience = defeated.reduce((sum, spawn) => sum + enemyExperience(spawn.level, spawn.isBoss, value.startLevel as number), 0)
+  const legacyExperience = defeated.reduce((sum, spawn) => sum + enemyExperience(spawn.level, spawn.isBoss), 0)
+  // 旧セーブは無制限、新規セーブは討伐時のプレイヤーLvで格上経験値を制限する。
+  if (battle.experienceEarned < minimumExperience || battle.experienceEarned > legacyExperience) return false
   const chestFloors = new Set<number>()
   if (loot.chests.length > Math.min(4, dungeon.totalFloors - 1)) return false
   for (const chest of loot.chests) {

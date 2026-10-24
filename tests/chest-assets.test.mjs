@@ -14,6 +14,7 @@ test('閉・開宝箱画像は128px素材へ対応し、Canvasがキャッシュ
   }
   const canvas = readFileSync(new URL('../src/components/DungeonMapCanvas.tsx', import.meta.url), 'utf8')
   assert.match(canvas, /loadCachedImage\(path\).*images\.set\(`chest_\$\{key\}`/)
-  assert.match(canvas, /chest\.opened \? 'chest_open' : 'chest_closed'/)
+  assert.match(canvas, /if \(chest && !chest\.opened\)/)
+  assert.match(canvas, /images\.get\('chest_closed'\)/)
   assert.match(canvas, /else \{\s*context\.fillStyle = '#2c180b'/)
 })

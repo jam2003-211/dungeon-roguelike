@@ -34,7 +34,7 @@ function validAttackTarget(state: BattleState, target: Position, map: ForestMap)
 function awardDefeated(state: BattleState, before: EnemyState[], after: EnemyState[]): BattleState {
   const remaining = new Set(after.map((enemy) => enemy.id)); let player = state.player; const notices = [...state.levelNotices]
   let experienceEarned = state.experienceEarned
-  for (const enemy of before) if (!remaining.has(enemy.id)) { const xp = enemyExperience(enemy.level, enemy.isBoss); const gained = gainExperience(player, xp); player = gained.player; experienceEarned += xp; if (gained.levelsGained) notices.push(player.level) }
+  for (const enemy of before) if (!remaining.has(enemy.id)) { const xp = enemyExperience(enemy.level, enemy.isBoss, player.level); const gained = gainExperience(player, xp); player = gained.player; experienceEarned += xp; if (gained.levelsGained) notices.push(player.level) }
   return { ...state, player, levelNotices: notices, experienceEarned }
 }
 function tickStatuses(state: BattleState): BattleState {
@@ -81,6 +81,16 @@ export function getSkillTargetCells(state: BattleState, skillId: SkillId, map: F
 export function useSkill(state: BattleState, skillId: SkillId, target?: Position, map: ForestMap = FOREST_MAP): BattleState {
   if (state.combat.finished || !availableSkills(state.player).includes(skillId) || (state.cooldowns[skillId] ?? 0) > 0) return state; const skill = SKILLS[skillId]
   if (!['self'].includes(skill.target) && (!target || !getSkillTargetCells(state, skillId, map).some((cell) => same(cell, target)))) return state
+  if ((skillId === 'smallHeal' || skillId === 'largeHeal') && state.player.currentHp >= calculateStats(state.player).maxHp) return state
+  if (skillId === 'dash' && target) {
+    const origin = state.combat.position
+    const distance = manhattanDistance(origin, target)
+    const step = { x: Math.sign(target.x - origin.x), y: Math.sign(target.y - origin.y) }
+    for (let index = 1; index <= distance; index += 1) {
+      const cell = { x: origin.x + step.x * index, y: origin.y + step.y * index }
+      if (!isPassable(map, cell) || state.combat.enemies.some((enemy) => same(enemy.position, cell))) return state
+    }
+  }
   let next = beginAction(state, skillId); next = { ...next, cooldowns: { ...next.cooldowns, [skillId]: skill.cooldown } }; const stats = calculateStats(next.player); const skillPower = availableSkillPower(next.player, skillId); const skillLevel = availableSkillLevel(next.player, skillId)
   if (skillId === 'smallHeal' || skillId === 'largeHeal') { const rate = (skillId === 'smallHeal' ? .2 : .4) * skillPower; const hp = Math.min(stats.maxHp, next.player.currentHp + Math.ceil(stats.maxHp * rate)); next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } } }
   else if (skillId === 'guard') next = { ...next, guardTurns: 3 }

@@ -47,7 +47,8 @@ export const JOBS = {
   spellblade: { name: '魔法剣士', unlockLevel: 30, hp: .8, physical: 1.3, magic: 1.3, weapons: ['sword', 'shortStaff', 'longStaff'], armors: ['lightArmor', 'lightRobe'] },
 } as const
 
-export function experienceToNext(level: number): number { return 100 + 25 * (level - 1) }
+// Lv1～5は従来の速度を維持し、以降は10階探索の敵数に合わせて必要量を増やす。
+export function experienceToNext(level: number): number { const later = Math.max(0, level - 5); return 100 + 25 * (level - 1) + 250 * later + 10 * later * later }
 export function baseStats(level: number): PlayerStats { const attack = 12 + 5 * (level - 1); return { maxHp: 100 + 20 * (level - 1), physical: attack, magic: attack } }
 export function itemBonuses(item: EquipmentItem): PlayerStats {
   const multiplier = item.statMultiplier ?? 1
@@ -65,8 +66,8 @@ export function calculateStats(player: PlayerState): PlayerStats {
 
 export function createPlayerState(): PlayerState {
   return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', treasures: [], inventory: [
-    { id: 'initial-sword', name: '初心者用の剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
-    { id: 'initial-armor', name: '初期軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
+    { id: 'initial-sword', name: '剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
+    { id: 'initial-armor', name: '軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
   ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
 }
 export function canEquip(jobId: JobId, item: EquipmentItem): boolean { if (item.category === 'accessory') return true; const job = JOBS[jobId]; return item.category === 'weapon' ? (job.weapons as readonly string[]).includes(item.subtype) : (job.armors as readonly string[]).includes(item.subtype) }
@@ -94,7 +95,8 @@ export function gainExperience(player: PlayerState, amount: number): { player: P
   const next = { ...player, level, experience }; const maxIncrease = calculateStats(next).maxHp - oldMax
   return { player: { ...next, currentHp: Math.min(calculateStats(next).maxHp, player.currentHp + Math.max(0, maxIncrease)) }, levelsGained }
 }
-export function enemyExperience(level: number, boss: boolean): number { const normal = 20 + 5 * (level - 1); return boss ? normal * 5 : normal }
+// 大幅な格上を倒しても、経験値はプレイヤーより5レベル上までで計算する。
+export function enemyExperience(level: number, boss: boolean, playerLevel = level): number { const normal = 20 + 5 * (Math.min(level, playerLevel + 5) - 1); return boss ? normal * 5 : normal }
 export function toggleFavorite(player: PlayerState, id: string): PlayerState { return { ...player, inventory: player.inventory.map((item) => item.id === id ? { ...item, favorite: !item.favorite } : item) } }
 export function discardItem(player: PlayerState, id: string): PlayerState { const target = player.inventory.find((item) => item.id === id); if (!target || target.favorite || isEquipped(player, id)) return player; return { ...player, inventory: player.inventory.filter((item) => item.id !== id) } }
 export function sortAndFilterInventory(player: PlayerState, category: EquipmentCategory, query: string): EquipmentItem[] { const normalized = query.trim().toLocaleLowerCase('ja'); return player.inventory.filter((item) => item.category === category && item.name.toLocaleLowerCase('ja').includes(normalized)).sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.level - a.level || a.id.localeCompare(b.id)) }
