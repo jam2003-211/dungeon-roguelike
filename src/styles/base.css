@@ -167,7 +167,8 @@ h1, h2, p { margin-top: 0; }
 .auto-skill-slot.is-targeting { border-color: #8dd2ff; box-shadow: 0 0 0 2px #4c9aca; }
 .auto-skill-empty { grid-column: 1 / -1; padding: 18px 0; color: var(--muted); font-size: .65rem; }
 .auto-skill-notice { display: block; margin-top: 4px; color: #fff1a0; font-size: .62rem; font-weight: 800; }
-.combat-hit { position: absolute; z-index: 2; pointer-events: none; display: flex; flex-direction: column; align-items: center; color: #fff0a0; text-shadow: 1px 1px #000, -1px -1px #000; font: bold 12px ui-monospace, monospace; animation: combat-spark .48s ease-out both; }
+.battle-effects { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; image-rendering: pixelated; }
+.combat-hit { position: absolute; z-index: 2; pointer-events: none; display: flex; flex-direction: column; align-items: center; color: #fff0a0; text-shadow: 1px 1px #000, -1px -1px #000; font: bold 12px ui-monospace, monospace; animation: combat-spark .42s ease-out both; }
 .combat-hit--player { color: #ff8585; }.combat-hit i { font-size: 19px; line-height: 16px; font-style: normal; }.combat-hit b { line-height: 12px; }
 @keyframes combat-spark { from { opacity: 1; transform: translate(-50%, -50%) scale(.65); } to { opacity: 0; transform: translate(-50%, -100%) scale(1.1); } }
 @keyframes skill-flash { from { background: #9c6c20; } to { background: #20232b; } }

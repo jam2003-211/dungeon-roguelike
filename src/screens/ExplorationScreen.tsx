@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { assetUrl, enemyAssetPaths, enemyFallbackPaths, jobAssetPaths, weaponAssetPaths } from '../assets'
 import { DungeonMapCanvas } from '../components/DungeonMapCanvas'
+import { BattleEffectsCanvas } from '../components/BattleEffectsCanvas'
 import { PixelAsset } from '../components/PixelAsset'
 import { SkillIcon } from '../components/SkillIcon'
 import { SpecialEffectIcon } from '../components/SpecialEffectIcon'
 import { AppShell, Panel } from '../components/Ui'
 import { getPlayerAttackCells, getSkillTargetCells, type BattleState } from '../game/battle'
 import { cameraOrigin } from '../game/dungeonCamera'
-import { combatVisuals, type CombatVisual } from '../game/combatVisuals'
+import { BATTLE_EFFECT_DURATION, combatVisuals, type CombatVisual } from '../game/combatVisuals'
 import { ENEMY_DEFINITIONS, getEnemyWarningLevel, type EnemyState } from '../game/combat/combat'
 import { directionFromKey, type Direction } from '../game/exploration'
 import type { ForestMap, Position } from '../game/forestMap'
 import type { DungeonTheme } from '../game/dungeon'
 import { availableSkillLevel, availableSkills, calculateStats, JOBS, type SkillId } from '../game/player'
 import { SKILLS } from '../game/skills'
+
+const NO_EFFECTS: NonNullable<BattleState['visualEvents']> = []
 
 interface Props { visualSeed: number; theme: DungeonTheme; onOpenChest: (x: number, y: number) => void; onClearLootNotice: () => void; onTestApproachChest?: () => void; battle: BattleState; map: ForestMap; stairs: Position; themeName: string; dungeonLevel: number; floor: number; totalFloors: number; totalFloorsKnown: boolean; menuOpen: boolean; onMove: (direction: Direction) => void; onAttack: () => void; onUseSkill: (id: SkillId, target?: Position) => void; announceInitialFinalFloor: boolean; onFinalFloorAnnounced: () => void; onNextFloor: () => void; onMenuOpenChange: (open: boolean) => void; onOpenStatus: () => void; onOpenEquipment: () => void; onReturn: () => void; onClearNotice: () => void; onTestReachStairs?: () => void; onTestApproachEnemy?: () => void; onTestDefeatBoss?: () => void }
 function isEditableTarget(target: EventTarget | null) { return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) }
@@ -22,6 +25,7 @@ function EnemyInfo({ enemy, onClose }: { enemy: EnemyState; onClose: () => void 
 export function ExplorationScreen({ visualSeed, theme, onOpenChest, onClearLootNotice, onTestApproachChest, battle, map, stairs, themeName, dungeonLevel, floor, totalFloors, totalFloorsKnown, menuOpen, onMove, onAttack, onUseSkill, announceInitialFinalFloor, onFinalFloorAnnounced, onNextFloor, onMenuOpenChange, onOpenStatus, onOpenEquipment, onReturn, onClearNotice, onTestReachStairs, onTestApproachEnemy, onTestDefeatBoss }: Props) {
   const [showDungeonInfo, setShowDungeonInfo] = useState(false); const [showReturnConfirmation, setShowReturnConfirmation] = useState(false); const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null)
   const [visuals, setVisuals] = useState<CombatVisual[]>([])
+  const [effects, setEffects] = useState(NO_EFFECTS)
   const [highlightedSkill, setHighlightedSkill] = useState<SkillId | null>(null)
   const [choosingDash, setChoosingDash] = useState(false)
   const [showFinalFloor, setShowFinalFloor] = useState(false)
@@ -34,13 +38,14 @@ export function ExplorationScreen({ visualSeed, theme, onOpenChest, onClearLootN
   const skillTimer = useRef<number | null>(null)
   useEffect(() => {
     const previous = previousCombat.current; previousCombat.current = { floor, combat }
-    if (previous.floor !== floor) { if (visualTimer.current) window.clearTimeout(visualTimer.current); setVisuals([]); return }
+    if (previous.floor !== floor) { if (visualTimer.current) window.clearTimeout(visualTimer.current); setVisuals([]); setEffects(NO_EFFECTS); return }
     if (combat.turn <= previous.combat.turn) return
     const hits = combatVisuals(previous.combat, combat)
     if (visualTimer.current) window.clearTimeout(visualTimer.current)
     setVisuals(hits)
-    if (hits.length) visualTimer.current = window.setTimeout(() => setVisuals([]), 480)
-  }, [combat, floor])
+    setEffects(battle.visualEvents ?? NO_EFFECTS)
+    if (hits.length || battle.visualEvents?.length) visualTimer.current = window.setTimeout(() => { setVisuals([]); setEffects(NO_EFFECTS) }, BATTLE_EFFECT_DURATION)
+  }, [combat, floor, battle.visualEvents])
   useEffect(() => () => { if (visualTimer.current) window.clearTimeout(visualTimer.current) }, [])
   useEffect(() => {
     if (skillTimer.current) window.clearTimeout(skillTimer.current)
@@ -101,7 +106,12 @@ export function ExplorationScreen({ visualSeed, theme, onOpenChest, onClearLootN
   }
   return <AppShell className="exploration-screen">
     <header className="exploration-hud panel"><div className="exploration-player"><span className="exploration-avatar"><PixelAsset src={jobAssetPaths[player.job]} alt={`${JOBS[player.job].name}の姿`} /></span><strong>Lv.{player.level} / {JOBS[player.job].name}</strong><span>HP {player.currentHp}/{stats.maxHp}</span><span className="hud-hp-track"><i style={{ width: `${player.currentHp / stats.maxHp * 100}%` }} /></span></div><div className="exploration-place"><strong>{themeName} Lv.{dungeonLevel}</strong><span>{floor}階 / {totalFloorsKnown ? totalFloors : '？'}階</span><em>{floor === totalFloors ? '最終階' : '探索中'}</em></div><button type="button" className="menu-button" onClick={openMenu} aria-label="探索メニューを開く">メニュー</button></header>
-    <div className="turn-display" aria-live="polite"><span>ENEMY {combat.enemies.length}</span>{battle.actionNotice?.turn === combat.turn && <output className="action-notice">{battle.actionNotice.label}</output>}</div><div className="map-frame" style={{ backgroundImage: "linear-gradient(rgba(5, 6, 8, .2), rgba(5, 6, 8, .2)), url(" + assetUrl("assets/backgrounds/" + theme + ".png") + ")" }}><DungeonMapCanvas visualSeed={visualSeed} chest={chest} map={map} stairs={stairs} themeName={themeName} floor={floor} turn={combat.turn} player={combat.position} playerJob={player.job} enemies={combat.enemies} targetCells={targetCells} selectedEnemyId={selectedEnemyId} onCellClick={handleCell} />{visuals.filter(({ position }) => position.x >= camera.x && position.x < camera.x + 11 && position.y >= camera.y && position.y < camera.y + 11).map((visual) => <span key={`${combat.turn}-${visual.id}`} className={`combat-hit combat-hit--${visual.kind}`} style={{ left: `${(visual.position.x - camera.x + .5) / 11 * 100}%`, top: `${(visual.position.y - camera.y + .5) / 11 * 100}%` }} aria-hidden="true"><i>✦</i><b>-{visual.damage}</b></span>)}</div>
+    <div className="turn-display" aria-live="polite"><span>ENEMY {combat.enemies.length}</span>{battle.actionNotice?.turn === combat.turn && <output className="action-notice">{battle.actionNotice.label}</output>}</div>
+    <div className="map-frame" style={{ backgroundImage: "linear-gradient(rgba(5, 6, 8, .2), rgba(5, 6, 8, .2)), url(" + assetUrl("assets/backgrounds/" + theme + ".png") + ")" }}>
+      <DungeonMapCanvas visualSeed={visualSeed} chest={chest} map={map} stairs={stairs} themeName={themeName} floor={floor} turn={combat.turn} player={combat.position} playerJob={player.job} enemies={combat.enemies} targetCells={targetCells} selectedEnemyId={selectedEnemyId} onCellClick={handleCell} />
+      <BattleEffectsCanvas events={effects} turn={combat.turn} camera={camera} />
+      {visuals.filter(({ position }) => position.x >= camera.x && position.x < camera.x + 11 && position.y >= camera.y && position.y < camera.y + 11).map((visual) => <span key={`${combat.turn}-${visual.id}`} className={`combat-hit combat-hit--${visual.kind}`} style={{ left: `${(visual.position.x - camera.x + .5) / 11 * 100}%`, top: `${(visual.position.y - camera.y + .5) / 11 * 100}%` }} aria-hidden="true"><i>✦</i><b>-{visual.damage}</b></span>)}
+    </div>
     <div className="floor-actions">{onChest && <button type="button" className="next-floor-button open-chest-button" onClick={() => onOpenChest(chest!.position.x, chest!.position.y)}>拾う</button>}{onStairs && <button type="button" className="next-floor-button" disabled={floor === totalFloors && bossAlive} onClick={onNextFloor}>{floor === totalFloors ? bossAlive ? 'ボス撃破後に使用可能' : '階段を使ってクリア' : '次の階へ'}</button>}</div>
     <div className="exploration-controls"><div className="d-pad" aria-label="移動用十字キー">{(['up', 'left', 'right', 'down'] as Direction[]).map((direction) => <button key={direction} type="button" className={`d-pad__${direction}`} onClick={() => { setChoosingDash(false); onMove(direction) }} onContextMenu={(event) => event.preventDefault()} aria-label={`${direction === 'up' ? '上' : direction === 'down' ? '下' : direction === 'left' ? '左' : '右'}へ移動`}><img src={assetUrl(`assets/arrows/arrow-${direction}-32.png`)} alt="" /></button>)}<button type="button" className="attack-button" onClick={() => { setSelectedEnemyId(null); setChoosingDash(false); onAttack() }} onContextMenu={(event) => event.preventDefault()} aria-label="攻撃"><PixelAsset src={weaponAssetPaths.sword} className="icon icon--large" fallbackIcon="weapon" fallbackSize="large" alt="" /><span>攻撃</span></button></div><div className="auto-skill-panel" aria-label="スキル"><strong>スキル</strong><div className="auto-skill-grid">{skills.length ? skills.map(renderSkillSlot) : <span className="auto-skill-empty">なし</span>}</div>{highlightedSkill && <output className="auto-skill-notice" role="status">{battle.actionNotice?.label}</output>}</div></div>
     {lootNotice && <div className="loot-toast" role="status">お宝 Lv.{lootNotice.level}を入手</div>}

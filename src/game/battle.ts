@@ -5,8 +5,10 @@ import { availableSkillLevel, availableSkillPower, availableSkills, calculateSta
 import { BURN_TURNS, CRITICAL_MULTIPLIER, DASH_STEPS, GUARD_REDUCTION, KNOCKBACK_STEPS, LEVEL_MULTIPLIERS, LIFESTEAL_RATE, POISON_TURNS, SLOW_TURNS, STUN_BONUS, type EffectLevel } from './effectLevels'
 import type { Direction } from './exploration'
 import type { LootState } from './loot'
+import type { BattleEffect } from './combatVisuals'
 
-export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number; loot?: LootState; actionNotice?: { turn: number; label: string; skillId?: SkillId } }
+export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number; loot?: LootState; actionNotice?: { turn: number; label: string; skillId?: SkillId }; visualEvents?: BattleEffect[] }
+export const WEAPON_RANGES: Readonly<Record<WeaponType, number>> = { sword: 1, spear: 2, bow: 3, shortStaff: 2, longStaff: 3 }
 const offsets: Record<Direction, Position> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 const POISON_RATE = .05; const BURN_DAMAGE = 3
 
@@ -21,7 +23,7 @@ export function getPlayerAttackCells(player: PlayerState, origin: Position, map:
   const type = weaponType(player); const cells: Position[] = []
   for (let y = 0; y < 20; y += 1) for (let x = 0; x < 20; x += 1) {
     const cell = { x, y }; const distance = manhattanDistance(origin, cell); const straight = x === origin.x || y === origin.y
-    const range = type === 'sword' ? 1 : type === 'spear' ? 2 : type === 'bow' ? 4 : type === 'shortStaff' ? 3 : 5
+    const range = WEAPON_RANGES[type]
     if (distance < 1 || distance > range || !isPassable(map, cell)) continue
     if (type === 'bow' && (!straight || !hasLineOfSight(map, origin, cell))) continue
     if ((type === 'shortStaff' || type === 'longStaff') && !hasLineOfSight(map, origin, cell)) continue
@@ -42,7 +44,7 @@ function tickStatuses(state: BattleState): BattleState {
   return awardDefeated({ ...state, combat: { ...state.combat, enemies } }, before, enemies)
 }
 function decrementCooldowns(cooldowns: BattleState['cooldowns'], used?: SkillId) { const next = { ...cooldowns }; for (const key of Object.keys(next) as SkillId[]) if (key !== used) next[key] = Math.max(0, (next[key] ?? 0) - 1); return next }
-function beginAction(state: BattleState, used?: SkillId): BattleState { return tickStatuses({ ...state, cooldowns: decrementCooldowns(state.cooldowns, used), guardTurns: used === 'guard' ? state.guardTurns : Math.max(0, state.guardTurns - 1) }) }
+function beginAction(state: BattleState, used?: SkillId): BattleState { return tickStatuses({ ...state, visualEvents: [], cooldowns: decrementCooldowns(state.cooldowns, used), guardTurns: used === 'guard' ? state.guardTurns : Math.max(0, state.guardTurns - 1) }) }
 function finishAction(prepared: BattleState, combat: CombatState, map: ForestMap): BattleState {
   const hpBefore = combat.playerHp; const processed = processEnemyTurn(combat, map); let hp = processed.playerHp; let guardTurns = prepared.guardTurns
   if (hp < hpBefore && guardTurns > 0) { hp = hpBefore - Math.floor((hpBefore - hp) * (1 - GUARD_REDUCTION[availableSkillLevel(prepared.player, 'guard') - 1])); guardTurns = 0 }
@@ -61,11 +63,45 @@ function knockback(enemy: EnemyState, source: Position, enemies: EnemyState[], m
 
 function damageEnemies(state: BattleState, ids: Set<string>, damage: number, effect: SpecialEffectId | null, proc: boolean, map: ForestMap, level: EffectLevel = 1, allowExtra = true): BattleState {
   const before = state.combat.enemies; let healing = 0
-  let enemies = before.map((enemy) => { if (!ids.has(enemy.id)) return enemy; const hitDamage = effect === 'critical' && proc ? Math.max(1, Math.floor(damage * CRITICAL_MULTIPLIER[level - 1])) : effect === 'stun' && proc ? damage + Math.floor(damage * STUN_BONUS[level - 1]) : damage; const actual = Math.min(enemy.hp, hitDamage); let next = { ...enemy, hp: enemy.hp - hitDamage }; if (proc && effect && ['poison', 'burn', 'slow', 'stun'].includes(effect)) next = applyStatus(next, effect, level); if (proc && effect === 'lifesteal') healing += Math.ceil(actual * LIFESTEAL_RATE[level - 1]); return next }).filter((enemy) => enemy.hp > 0)
-  if (proc && effect === 'knockback') enemies = enemies.map((enemy) => ids.has(enemy.id) ? knockback(enemy, state.combat.position, enemies, map, KNOCKBACK_STEPS[level - 1]) : enemy)
-  if (proc && effect === 'extraAttack' && allowExtra) enemies = enemies.map((enemy) => ids.has(enemy.id) ? { ...enemy, hp: enemy.hp - Math.max(1, Math.floor(damage * LEVEL_MULTIPLIERS[level - 1])) } : enemy).filter((enemy) => enemy.hp > 0)
+  const events = [...(state.visualEvents ?? [])]
+  const emit = (id: SpecialEffectId, position: Position, from = state.combat.position, value?: number) => events.push({ kind: 'special', effect: id, position: { ...position }, from: { ...from }, value })
+  let enemies = before.map((enemy) => {
+    if (!ids.has(enemy.id)) return enemy
+    const hitDamage = effect === 'critical' && proc ? Math.max(1, Math.floor(damage * CRITICAL_MULTIPLIER[level - 1])) : effect === 'stun' && proc ? damage + Math.floor(damage * STUN_BONUS[level - 1]) : damage
+    const actual = Math.min(enemy.hp, hitDamage)
+    let next = { ...enemy, hp: enemy.hp - hitDamage }
+    if (proc && effect && ['poison', 'burn', 'slow', 'stun'].includes(effect)) {
+      const affected = applyStatus(next, effect, level)
+      // 死亡対象や気絶耐性で無効になった状態異常は表示しない。再付与は表示する。
+      if (affected !== next && affected.hp > 0) emit(effect, enemy.position)
+      next = affected
+    }
+    if (proc && effect === 'critical') emit(effect, enemy.position)
+    if (proc && effect === 'lifesteal') healing += Math.ceil(actual * LIFESTEAL_RATE[level - 1])
+    return next
+  }).filter((enemy) => enemy.hp > 0)
+  if (proc && effect === 'knockback') enemies = enemies.map((enemy) => {
+    if (!ids.has(enemy.id)) return enemy
+    const moved = knockback(enemy, state.combat.position, enemies, map, KNOCKBACK_STEPS[level - 1])
+    if (!same(moved.position, enemy.position)) emit('knockback', moved.position, enemy.position)
+    return moved
+  })
+  if (proc && effect === 'extraAttack' && allowExtra) enemies = enemies.map((enemy) => {
+    if (!ids.has(enemy.id)) return enemy
+    emit('extraAttack', enemy.position)
+    return { ...enemy, hp: enemy.hp - Math.max(1, Math.floor(damage * LEVEL_MULTIPLIERS[level - 1])) }
+  }).filter((enemy) => enemy.hp > 0)
   let next = awardDefeated({ ...state, combat: { ...state.combat, enemies } }, before, enemies); const maxHp = calculateStats(next.player).maxHp
-  if (healing) { const hp = Math.min(maxHp, next.player.currentHp + healing); next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } } }
+  if (healing) {
+    const hp = Math.min(maxHp, next.player.currentHp + healing)
+    const gained = hp - next.player.currentHp
+    if (gained > 0) {
+      const sources = before.filter((enemy) => ids.has(enemy.id))
+      sources.forEach((enemy, index) => emit('lifesteal', state.combat.position, enemy.position, index === 0 ? gained : undefined))
+    }
+    next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } }
+  }
+  next = { ...next, visualEvents: events }
   return next
 }
 
@@ -92,24 +128,31 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
     }
   }
   let next = beginAction(state, skillId); next = { ...next, cooldowns: { ...next.cooldowns, [skillId]: skill.cooldown } }; const stats = calculateStats(next.player); const skillPower = availableSkillPower(next.player, skillId); const skillLevel = availableSkillLevel(next.player, skillId)
-  if (skillId === 'smallHeal' || skillId === 'largeHeal') { const rate = (skillId === 'smallHeal' ? .2 : .4) * skillPower; const hp = Math.min(stats.maxHp, next.player.currentHp + Math.ceil(stats.maxHp * rate)); next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } } }
+  const origin = { ...next.combat.position }
+  let effectPositions: Position[] = [origin]
+  let recovered: number | undefined
+  if (skillId === 'smallHeal' || skillId === 'largeHeal') { const rate = (skillId === 'smallHeal' ? .2 : .4) * skillPower; const hp = Math.min(stats.maxHp, next.player.currentHp + Math.ceil(stats.maxHp * rate)); recovered = hp - next.player.currentHp; next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } } }
   else if (skillId === 'guard') next = { ...next, guardTurns: 3 }
   else if (skillId === 'dash' && target) { const direction: Direction = target.x > next.combat.position.x ? 'right' : target.x < next.combat.position.x ? 'left' : target.y > next.combat.position.y ? 'down' : 'up'; let position = next.combat.position; const steps = Math.min(DASH_STEPS[skillLevel - 1], manhattanDistance(position, target)); for (let i = 0; i < steps; i += 1) { const candidate = { x: position.x + offsets[direction].x, y: position.y + offsets[direction].y }; if (!isPassable(map, candidate) || next.combat.enemies.some((enemy) => same(enemy.position, candidate))) break; position = candidate } next = { ...next, combat: { ...next.combat, position } } }
   else {
     const targets = getSkillAffectedEnemies(next, skillId, target, map)
     if ((skill.multiplier || ['slowSpell'].includes(skillId)) && targets.length === 0) return state
+    effectPositions = skillId === 'shockwave' ? [origin] : targets.map((enemy) => ({ ...enemy.position }))
     if (skill.multiplier) next = damageEnemies(next, new Set(targets.map((enemy) => enemy.id)), Math.max(1, Math.floor((skill.attackType === 'magic' ? stats.magic : stats.physical) * skill.multiplier * skillPower)), null, false, map)
     if (skillId === 'poisonStrike' || skillId === 'slowSpell' || skillId === 'stunStrike') { const effect = skillId === 'poisonStrike' ? 'poison' : skillId === 'slowSpell' ? 'slow' : 'stun'; const ids = new Set(targets.map((enemy) => enemy.id)); next = { ...next, combat: { ...next.combat, enemies: next.combat.enemies.map((enemy) => ids.has(enemy.id) ? applyStatus(enemy, effect, skillLevel) : enemy) } } }
   }
+  if (skillId === 'dash') effectPositions = [{ ...next.combat.position }]
+  next = { ...next, visualEvents: [...(next.visualEvents ?? []), ...effectPositions.map((position): BattleEffect => ({ kind: 'skill', effect: skillId, position, from: origin, value: recovered }))] }
   return finishAction(next, { ...next.combat, turn: next.combat.turn + 1 }, map)
 }
 
 // 自動選択と実発動で同じ効果範囲を共有する。
 export function getSkillAffectedEnemies(state: BattleState, skillId: SkillId, target?: Position, map: ForestMap = FOREST_MAP): EnemyState[] {
-  const enemies = state.combat.enemies.filter((enemy) => enemy.hp > 0)
+  // 範囲攻撃の巻き込みも含め、壁の向こうの敵へ着弾させない。
+  const enemies = state.combat.enemies.filter((enemy) => enemy.hp > 0 && isPassable(map, enemy.position) && hasLineOfSight(map, state.combat.position, enemy.position))
   if (skillId === 'shockwave') return enemies.filter((enemy) => manhattanDistance(enemy.position, state.combat.position) <= 2 && Math.max(Math.abs(enemy.position.x - state.combat.position.x), Math.abs(enemy.position.y - state.combat.position.y)) === 1)
   if (skillId === 'flame' && target) return enemies.filter((enemy) => Math.max(Math.abs(enemy.position.x - target.x), Math.abs(enemy.position.y - target.y)) <= 1)
-  if (skillId === 'piercingShot' && target) return enemies.filter((enemy) => (enemy.position.x === state.combat.position.x || enemy.position.y === state.combat.position.y) && manhattanDistance(enemy.position, state.combat.position) <= 4 && hasLineOfSight(map, state.combat.position, enemy.position))
+  if (skillId === 'piercingShot' && target) return enemies.filter((enemy) => (enemy.position.x === state.combat.position.x || enemy.position.y === state.combat.position.y) && manhattanDistance(enemy.position, state.combat.position) <= SKILLS.piercingShot.range)
   return target ? enemies.filter((enemy) => same(enemy.position, target)) : []
 }
 

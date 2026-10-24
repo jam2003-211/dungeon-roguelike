@@ -74,7 +74,7 @@ test('表示範囲外の敵も有効行動後に追跡を続ける', () => {
 })
 
 test('武器5種類の攻撃範囲と遮蔽を判定する', () => {
-  const expected = { 'initial-sword': 4, 'test-spear': 12, 'test-bow': 16, 'test-short-staff': 24, 'test-long-staff': 60 }
+  const expected = { 'initial-sword': 4, 'test-spear': 12, 'test-bow': 12, 'test-short-staff': 12, 'test-long-staff': 24 }
   for (const [id, count] of Object.entries(expected)) { const state = battle.createBattleState(withWeapon(id), []); state.combat.position = { x: 10, y: 10 }; assert.equal(battle.getPlayerAttackCells(state.player, state.combat.position, openMap()).length, count, id) }
   const bow = battle.createBattleState(withWeapon('test-bow'), []); bow.combat.position = { x: 5, y: 5 }; const cells = battle.getPlayerAttackCells(bow.player, bow.combat.position, openMap([{ x: 5, y: 7 }]))
   assert.equal(cells.some((cell) => cell.x === 5 && cell.y === 8), false)

@@ -10,12 +10,12 @@ export interface SavedRun {
   stockId: DungeonStockId
   floor: number
   startLevel: number
-  battle: Omit<BattleState, 'player' | 'loot' | 'levelNotices' | 'actionNotice'> & { loot: Omit<LootState, 'notices'> }
+  battle: Omit<BattleState, 'player' | 'loot' | 'levelNotices' | 'actionNotice' | 'visualEvents'> & { loot: Omit<LootState, 'notices'> }
 }
 
 export function captureRun(stockId: DungeonStockId, floor: number, battle: BattleState, startLevel = battle.player.level): SavedRun {
   if (!battle.loot) throw new Error('探索の報酬データがありません。')
-  const { player: _player, levelNotices: _notices, actionNotice: _actionNotice, loot, ...state } = battle
+  const { player: _player, levelNotices: _notices, actionNotice: _actionNotice, visualEvents: _visualEvents, loot, ...state } = battle
   const { notices: _lootNotices, ...rewards } = loot
   return { stockId, floor, startLevel, battle: { ...state, loot: rewards } }
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { runSaveBrowserChecks, databaseAccess } from './save-browser.mjs'
 import { createFixturePlayer } from './equipment-fixture.mjs'
 import { runResumeBrowserChecks } from './resume-browser.mjs'
+import { runBattleEffectsBrowserChecks } from './battle-effects-browser.mjs'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -622,10 +623,13 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     const guardButton = await evaluate("(()=>{const button=document.querySelector('[data-auto-skill-id=guard]');if(!button)return null;const box=button.getBoundingClientRect();return {tag:button.tagName,disabled:button.disabled,height:box.height,right:box.right,label:button.getAttribute('aria-label')}})()")
     assert.ok(guardButton && guardButton.tag === 'BUTTON' && !guardButton.disabled && guardButton.height >= 40 && guardButton.right <= width && guardButton.label.includes('Lv.5'), `${width}pxで防御ボタンが操作できません。`)
     await clickButton('防御')
+    await waitFor("document.querySelector('.battle-effects')?.dataset.effects?.includes('skill:guard')", '防御の専用エフェクトが表示されません。')
+    if (width === 390) await captureScreen('defense-effect-390')
     assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.turn"), '1')
     assert.equal(await evaluate("document.querySelector('[data-auto-skill-id=guard]').disabled"), true)
     assert.equal(await evaluate("document.querySelector('.action-notice').textContent"), '防御 Lv.5')
     await waitFor(`(${databaseAccess})().then((data)=>data?.run?.battle.cooldowns.guard===5 && data.run.battle.combat.turn===1)`, '防御使用後の探索状態が保存されません。')
+    assert.equal(await evaluate(`(${databaseAccess})().then((data)=>'visualEvents' in data.run.battle)`), false, '演出情報がセーブに混入しています。')
     if (width === 360) {
       await command('Page.reload'); await waitFor("document.querySelector('.title-start')&&!document.querySelector('.title-start').disabled", '防御使用後の探索再開が表示されません。')
       await clickButton('探索を再開'); await assertExplorationScreen()
@@ -635,6 +639,7 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await clickButton('町へ戻る')
     await waitFor(`(${databaseAccess})().then((data)=>data?.run===null)`, '防御テスト後の帰還状態が保存されません。')
   }
+  await runBattleEffectsBrowserChecks({ evaluate, command, waitFor, captureScreen })
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })

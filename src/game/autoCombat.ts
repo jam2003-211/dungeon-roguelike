@@ -19,7 +19,7 @@ export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction
       const enemy = selectAutoTarget(candidates, map, id)
       if (enemy) return { skillId: id, target: enemy.position }
     } else if (SKILLS[id].target === 'self') {
-      if (getSkillAffectedEnemies(state, id).length) return { skillId: id }
+      if (getSkillAffectedEnemies(state, id, undefined, map).length) return { skillId: id }
     } else {
       const candidates = getSkillTargetCells(state, id, map).map((target) => ({ target, hits: getSkillAffectedEnemies(state, id, target, map).length }))
         .filter(({ hits }) => hits > 0).sort((a, b) => b.hits - a.hits || manhattanDistance(origin, a.target) - manhattanDistance(origin, b.target) || a.target.y - b.target.y || a.target.x - b.target.x)
