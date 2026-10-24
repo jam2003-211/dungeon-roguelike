@@ -566,7 +566,7 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     const pads = await evaluate("[...document.querySelectorAll('.d-pad button')].map(b=>{const r=b.getBoundingClientRect();return [r.width,r.height]})")
     assert.ok(pads.every(([w,h])=>w>=64&&h>=64&&w<=72&&h<=72))
     assert.equal(await evaluate("(()=>{const pad=document.querySelector('.d-pad'),attack=pad.querySelector('.attack-button'),up=pad.querySelector('.d-pad__up'),skills=document.querySelector('.auto-skill-panel');const a=attack.getBoundingClientRect(),u=up.getBoundingClientRect(),s=skills.getBoundingClientRect();return attack.parentElement===pad&&Math.abs(a.left-u.left)<2&&a.top>=u.bottom&&s.left>a.right&&s.right<=innerWidth})()"), true, '中央攻撃・右側スキル枠が崩れています')
-    assert.equal(await evaluate("document.querySelectorAll('.auto-skill-slot[data-auto-skill-id]').length>0 && [...document.querySelectorAll('.auto-skill-panel button')].every((button)=>['dash','smallHeal','largeHeal'].includes(button.dataset.autoSkillId))"), true, '手動スキル以外がボタンです')
+    assert.equal(await evaluate("document.querySelectorAll('.auto-skill-slot[data-auto-skill-id]').length>0 && [...document.querySelectorAll('.auto-skill-panel button')].every((button)=>['dash','smallHeal','largeHeal','guard'].includes(button.dataset.autoSkillId))"), true, '手動スキル以外がボタンです')
     assert.equal(await evaluate("document.querySelector('.attack-button img').getAttribute('src')"), '/assets/weapons/sword.png')
     const emptyTurn = await evaluate("document.querySelector('.dungeon-map').dataset.turn")
     const emptyImage = await evaluate("document.querySelector('.dungeon-map').toDataURL()")
@@ -608,6 +608,33 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
   }
   await runSaveBrowserChecks({ evaluate, command, clickButton, clickExactButton, assertScreen, assertExplorationScreen, waitFor, captureScreen })
   await runResumeBrowserChecks({ evaluate, command, clickButton, clickExactButton, clickMapCell, assertScreen, assertExplorationScreen, waitFor, captureScreen })
+  await clickButton('ゲーム開始'); await clickButton('ダンジョン'); await clickExactButton('生成')
+  await waitFor(`(${databaseAccess})().then((data)=>!!data?.stocks?.[0]?.dungeon)`, '防御UI確認用ダンジョンを保存できません。')
+  const guardSave = await evaluate(`(${databaseAccess})()`)
+  const guardArmor = guardSave.player.inventory.find((item) => item.id === 'initial-armor')
+  guardArmor.skills = ['guard']; guardArmor.skillLevels = { guard: 5 }
+  await evaluate(`(${databaseAccess})('readwrite', ${JSON.stringify(guardSave)})`)
+  await command('Page.reload'); await waitFor("document.querySelector('.title-start')&&!document.querySelector('.title-start').disabled", '防御スキル付き保存を読み込めません。')
+  await clickButton('ゲーム開始')
+  for (const width of [360, 390, 430]) {
+    await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
+    await clickButton('ダンジョン'); await clickExactButton('探索開始'); await assertExplorationScreen()
+    const guardButton = await evaluate("(()=>{const button=document.querySelector('[data-auto-skill-id=guard]');if(!button)return null;const box=button.getBoundingClientRect();return {tag:button.tagName,disabled:button.disabled,height:box.height,right:box.right,label:button.getAttribute('aria-label')}})()")
+    assert.ok(guardButton && guardButton.tag === 'BUTTON' && !guardButton.disabled && guardButton.height >= 40 && guardButton.right <= width && guardButton.label.includes('Lv.5'), `${width}pxで防御ボタンが操作できません。`)
+    await clickButton('防御')
+    assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.turn"), '1')
+    assert.equal(await evaluate("document.querySelector('[data-auto-skill-id=guard]').disabled"), true)
+    assert.equal(await evaluate("document.querySelector('.action-notice').textContent"), '防御 Lv.5')
+    await waitFor(`(${databaseAccess})().then((data)=>data?.run?.battle.cooldowns.guard===5 && data.run.battle.combat.turn===1)`, '防御使用後の探索状態が保存されません。')
+    if (width === 360) {
+      await command('Page.reload'); await waitFor("document.querySelector('.title-start')&&!document.querySelector('.title-start').disabled", '防御使用後の探索再開が表示されません。')
+      await clickButton('探索を再開'); await assertExplorationScreen()
+      assert.equal(await evaluate("document.querySelector('.dungeon-map').dataset.turn"), '1')
+      assert.equal(await evaluate("document.querySelector('[data-auto-skill-id=guard]').disabled"), true)
+    }
+    await clickButton('探索メニューを開く'); await clickButton('町へ帰還'); await clickButton('帰還する'); await clickButton('町へ戻る')
+    await waitFor(`(${databaseAccess})().then((data)=>data?.run===null)`, '防御テスト後の帰還状態が保存されません。')
+  }
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })

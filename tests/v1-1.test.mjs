@@ -36,13 +36,45 @@ test('自動対象は武器とスキルの射程・障害物・視線を維持�
   assert.equal(battle.getPlayerAttackCells(s.player, { x: 10, y: 10 }, map).length, 4)
   assert.notDeepEqual(battle.getPlayerAttackCells(s.player, { x: 9, y: 10 }, map), battle.getPlayerAttackCells(s.player, { x: 10, y: 10 }, map))
 })
-for (const id of Object.keys(skills.SKILLS).filter((id) => !['smallHeal', 'largeHeal', 'dash'].includes(id))) test(`自動発動条件と単一ターン：${id}`, () => {
+for (const id of Object.keys(skills.SKILLS).filter((id) => !['smallHeal', 'largeHeal', 'dash', 'guard'].includes(id))) test(`自動発動条件と単一ターン：${id}`, () => {
   const s = state([id])
-  if (id === 'guard') warn(s)
   const choice = auto.chooseAutoAction(s, map)
   assert.equal(choice.skillId, id)
   const next = auto.performAutoAttack(s, map)
   assert.equal(next.combat.turn, 1); assert.equal(next.cooldowns[id], skills.SKILLS[id].cooldown)
+})
+test('防御は手動専用で、赤予告の攻撃をLv1～5の既存軽減率で受ける', () => {
+  for (const [level, reduction] of [.5, .55, .6, .65, .7].entries()) {
+    const s = warn(state(['guard']))
+    s.player.inventory.find((item) => item.id === 'regular-skills').skillLevels = { guard: level + 1 }
+    s.combat.enemies[0].attack = 20
+    assert.equal(auto.chooseAutoAction(s, map).skillId, undefined)
+    const automatic = auto.performAutoAttack(s, map)
+    assert.equal(automatic.cooldowns.guard, undefined)
+    const defended = battle.useSkill(s, 'guard', undefined, map)
+    assert.equal(defended.combat.turn, 1)
+    assert.equal(defended.cooldowns.guard, skills.SKILLS.guard.cooldown)
+    assert.equal(defended.player.currentHp, 80 - Math.floor(20 * (1 - reduction)))
+    assert.equal(defended.guardTurns, 0)
+    assert.equal(defended.combat.enemies[0].warning, null)
+    assert.equal(battle.useSkill(defended, 'guard', undefined, map), defended)
+  }
+  const absent = state()
+  assert.equal(battle.useSkill(absent, 'guard', undefined, map), absent)
+})
+test('防御の手動ターン後に敵が準備し、次の赤予告とCDを更新する', () => {
+  const s = state(['guard'])
+  const defended = battle.useSkill(s, 'guard', undefined, map)
+  assert.equal(defended.combat.turn, 1)
+  assert.equal(defended.guardTurns, 3)
+  assert.equal(defended.cooldowns.guard, 5)
+  assert.equal(combat.getWarningLevel(defended.combat.enemies, defended.combat.position), 'red')
+  assert.equal(defended.player.currentHp, s.player.currentHp)
+  const escaped = battle.moveBattlePlayer(defended, 'up', map)
+  assert.equal(escaped.combat.turn, 2)
+  assert.equal(escaped.cooldowns.guard, 4)
+  assert.equal(escaped.player.currentHp, s.player.currentHp)
+  assert.equal(escaped.combat.enemies[0].warning, null)
 })
 test('回復とダッシュは自動選択せず、手動時だけ有効な行動でターンとCDを使う', () => {
   const healing = state(['smallHeal', 'largeHeal']); healing.combat.enemies = []

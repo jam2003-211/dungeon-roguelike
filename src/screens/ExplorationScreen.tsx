@@ -88,9 +88,10 @@ export function ExplorationScreen({ visualSeed, theme, onOpenChest, onClearLootN
   }
   const onChest = chest && !chest.opened && chest.position.x === combat.position.x && chest.position.y === combat.position.y
   const renderSkillSlot = (id: SkillId) => {
-    const manual = id === 'smallHeal' || id === 'largeHeal' || id === 'dash'
+    const manual = id === 'smallHeal' || id === 'largeHeal' || id === 'dash' || id === 'guard'
+    const healing = id === 'smallHeal' || id === 'largeHeal'
     const cooling = (battle.cooldowns[id] ?? 0) > 0
-    const unusable = cooling || (id !== 'dash' && manual && player.currentHp >= stats.maxHp)
+    const unusable = cooling || (healing && player.currentHp >= stats.maxHp)
     const className = `auto-skill-slot${manual ? ' is-manual' : ''}${highlightedSkill === id ? ' is-triggered' : ''}${cooling ? ' is-cooling' : ''}${choosingDash && id === 'dash' ? ' is-targeting' : ''}`
     const label = `${SKILLS[id].name} Lv.${availableSkillLevel(player, id)}${cooling ? ` CD ${battle.cooldowns[id]}` : manual ? ' 使用' : ' 自動'}`
     const content = <><SkillIcon skillId={id} />{manual && <span className="manual-skill-label">{SKILLS[id].name}</span>}{manual && <b className="manual-skill-level">Lv.{availableSkillLevel(player, id)}</b>}{cooling && <small>{battle.cooldowns[id]}</small>}</>

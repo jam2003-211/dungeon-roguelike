@@ -1,11 +1,11 @@
 import { attackWithWeapon, getSkillAffectedEnemies, getSkillTargetCells, selectAutoTarget, useSkill, type BattleState } from './battle'
 import { availableSkillLevel, availableSkills, type SkillId } from './player'
-import { getWarningLevel, manhattanDistance } from './combat/combat'
+import { manhattanDistance } from './combat/combat'
 import { type ForestMap, type Position } from './forestMap'
 import { SKILLS } from './skills'
 
-// 防御→攻撃（定義順）の固定優先度。回復・移動は手動発動専用。
-export const AUTO_SKILL_PRIORITY: readonly SkillId[] = ['guard', 'strongStrike', 'magicBolt', 'piercingShot', 'shockwave', 'flame', 'poisonStrike', 'slowSpell', 'stunStrike']
+// 攻撃のみ定義順で自動選択。回復・移動・防御は手動発動専用。
+export const AUTO_SKILL_PRIORITY: readonly SkillId[] = ['strongStrike', 'magicBolt', 'piercingShot', 'shockwave', 'flame', 'poisonStrike', 'slowSpell', 'stunStrike']
 type AutoAction = { skillId: SkillId; target?: Position } | { target: Position; skillId?: undefined }
 
 export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction | null {
@@ -13,10 +13,6 @@ export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction
   const origin = state.combat.position
   for (const id of AUTO_SKILL_PRIORITY) {
     if (!availableSkills(state.player).includes(id) || (state.cooldowns[id] ?? 0) > 0) continue
-    if (id === 'guard') {
-      if (state.guardTurns === 0 && getWarningLevel(state.combat.enemies, origin) === 'red') return { skillId: id }
-      continue
-    }
     if (SKILLS[id].target === 'single') {
       const effect = id === 'poisonStrike' ? 'poison' : id === 'slowSpell' ? 'slow' : id === 'stunStrike' ? 'stun' : null
       const candidates = effect ? { ...state, combat: { ...state.combat, enemies: state.combat.enemies.filter((enemy) => (enemy.statuses?.[effect] ?? 0) === 0 && (effect !== 'stun' || (enemy.statuses?.stunRecovery ?? 0) === 0)) } } : state

@@ -112,7 +112,7 @@ function App() {
   const handleMove = useCallback((direction: Direction) => { if (activeFloor) applyBattleAction((current) => moveBattlePlayer(current, direction, activeFloor.map)) }, [activeFloor, applyBattleAction])
   const handleAttack = useCallback(() => { if (activeFloor) applyBattleAction((current) => performAutoAttack(current, activeFloor.map)) }, [activeFloor, applyBattleAction])
   const handleManualSkill = useCallback((skillId: SkillId, target?: Position) => {
-    if (!activeFloor || !['smallHeal', 'largeHeal', 'dash'].includes(skillId)) return
+    if (!activeFloor || !['smallHeal', 'largeHeal', 'dash', 'guard'].includes(skillId)) return
     applyBattleAction((current) => {
       const next = useSkill(current, skillId, target, activeFloor.map)
       return next === current ? current : { ...next, actionNotice: { turn: next.combat.turn, label: `${SKILLS[skillId].name} Lv.${availableSkillLevel(current.player, skillId)}`, skillId } }
