@@ -2,10 +2,10 @@ import { attackWithWeapon, getSkillAffectedEnemies, getSkillTargetCells, selectA
 import { availableSkillLevel, availableSkills, type SkillId } from './player'
 import { manhattanDistance } from './combat/combat'
 import { type ForestMap, type Position } from './forestMap'
-import { SKILLS } from './skills'
+import { OFFENSIVE_SKILL_PRIORITY, SKILLS } from './skills'
 
 // 攻撃のみ定義順で自動選択。回復・移動・防御は手動発動専用。
-export const AUTO_SKILL_PRIORITY: readonly SkillId[] = ['strongStrike', 'magicBolt', 'piercingShot', 'shockwave', 'flame', 'poisonStrike', 'slowSpell', 'stunStrike']
+export const AUTO_SKILL_PRIORITY: readonly SkillId[] = OFFENSIVE_SKILL_PRIORITY
 type AutoAction = { skillId: SkillId; target?: Position } | { target: Position; skillId?: undefined }
 
 export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction | null {

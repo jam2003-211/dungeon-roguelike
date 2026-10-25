@@ -1,6 +1,6 @@
 import { FOREST_MAP, isPassable, type ForestMap, type Position } from './forestMap'
 import { hasLineOfSight, manhattanDistance, processEnemyTurn, type CombatState, type EnemyState } from './combat/combat'
-import { SKILLS } from './skills'
+import { cooldownTrigger, SKILLS, type CooldownTrigger } from './skills'
 import { availableSkillLevel, availableSkillPower, availableSkills, calculateStats, enemyExperience, equippedWeapon, gainExperience, type PlayerState, type SkillId, type SpecialEffectId, type WeaponType } from './player'
 import { BURN_TURNS, CRITICAL_MULTIPLIER, DASH_STEPS, GUARD_REDUCTION, KNOCKBACK_STEPS, LEVEL_MULTIPLIERS, LIFESTEAL_RATE, POISON_TURNS, SLOW_TURNS, STUN_BONUS, type EffectLevel } from './effectLevels'
 import type { Direction } from './exploration'
@@ -43,8 +43,14 @@ function tickStatuses(state: BattleState): BattleState {
   const before = state.combat.enemies; const enemies = before.map((enemy) => { const statuses = enemy.statuses ?? { poison: 0, burn: 0, slow: 0, stun: 0 }; let hp = enemy.hp; if (statuses.poison > 0) hp -= Math.max(1, Math.ceil(enemy.maxHp * POISON_RATE)); if (statuses.burn > 0) hp -= BURN_DAMAGE; return { ...enemy, hp, statuses: { ...statuses, poison: Math.max(0, statuses.poison - 1), burn: Math.max(0, statuses.burn - 1) } } }).filter((enemy) => enemy.hp > 0)
   return awardDefeated({ ...state, combat: { ...state.combat, enemies } }, before, enemies)
 }
-function decrementCooldowns(cooldowns: BattleState['cooldowns'], used?: SkillId) { const next = { ...cooldowns }; for (const key of Object.keys(next) as SkillId[]) if (key !== used) next[key] = Math.max(0, (next[key] ?? 0) - 1); return next }
-function beginAction(state: BattleState, used?: SkillId): BattleState { return tickStatuses({ ...state, visualEvents: [], cooldowns: decrementCooldowns(state.cooldowns, used), guardTurns: used === 'guard' ? state.guardTurns : Math.max(0, state.guardTurns - 1) }) }
+function decrementCooldowns(cooldowns: BattleState['cooldowns'], action: CooldownTrigger, used?: SkillId) {
+  const next = { ...cooldowns }
+  for (const key of Object.keys(next) as SkillId[]) {
+    if (key !== used && (action === 'normalAttack' || cooldownTrigger(key) === 'playerAction')) next[key] = Math.max(0, (next[key] ?? 0) - 1)
+  }
+  return next
+}
+function beginAction(state: BattleState, action: CooldownTrigger = 'playerAction', used?: SkillId): BattleState { return tickStatuses({ ...state, visualEvents: [], cooldowns: decrementCooldowns(state.cooldowns, action, used), guardTurns: used === 'guard' ? state.guardTurns : Math.max(0, state.guardTurns - 1) }) }
 function finishAction(prepared: BattleState, combat: CombatState, map: ForestMap): BattleState {
   const hpBefore = combat.playerHp; const processed = processEnemyTurn(combat, map); let hp = processed.playerHp; let guardTurns = prepared.guardTurns
   if (hp < hpBefore && guardTurns > 0) { hp = hpBefore - Math.floor((hpBefore - hp) * (1 - GUARD_REDUCTION[availableSkillLevel(prepared.player, 'guard') - 1])); guardTurns = 0 }
@@ -106,8 +112,17 @@ function damageEnemies(state: BattleState, ids: Set<string>, damage: number, eff
 }
 
 export function attackWithWeapon(state: BattleState, target: Position, map: ForestMap = FOREST_MAP, random: () => number = Math.random): BattleState {
-  if (!validAttackTarget(state, target, map)) return state; const stats = calculateStats(state.player); const type = weaponType(state.player); const magic = type === 'shortStaff' || type === 'longStaff'; const damage = Math.max(1, Math.floor(magic ? stats.magic : stats.physical)); const weapon = equippedWeapon(state.player); const effect = weapon?.specialEffect ?? null; const proc = effect !== null && random() < (weapon?.effectRate ?? .1)
-  const prepared = beginAction(state); const ids = new Set(prepared.combat.enemies.filter((enemy) => magic ? getPlayerAttackCells(prepared.player, prepared.combat.position, map).some((cell) => same(cell, enemy.position)) : same(enemy.position, target)).map((enemy) => enemy.id))
+  if (!validAttackTarget(state, target, map)) return state
+  const stats = calculateStats(state.player)
+  const type = weaponType(state.player)
+  const magic = type === 'shortStaff' || type === 'longStaff'
+  const cells = magic ? getPlayerAttackCells(state.player, state.combat.position, map) : []
+  if (!state.combat.enemies.some((enemy) => enemy.hp > 0 && (magic ? cells.some((cell) => same(cell, enemy.position)) : same(enemy.position, target)))) return state
+  const damage = Math.max(1, Math.floor(magic ? stats.magic : stats.physical))
+  const weapon = equippedWeapon(state.player)
+  const effect = weapon?.specialEffect ?? null
+  const proc = effect !== null && random() < (weapon?.effectRate ?? .1)
+  const prepared = beginAction(state, 'normalAttack'); const ids = new Set(prepared.combat.enemies.filter((enemy) => magic ? cells.some((cell) => same(cell, enemy.position)) : same(enemy.position, target)).map((enemy) => enemy.id))
   const damaged = damageEnemies(prepared, ids, damage, effect, proc, map, weapon?.specialEffectLevel ?? 1)
   return finishAction(damaged, { ...damaged.combat, turn: damaged.combat.turn + 1 }, map)
 }
@@ -127,7 +142,7 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
       if (!isPassable(map, cell) || state.combat.enemies.some((enemy) => same(enemy.position, cell))) return state
     }
   }
-  let next = beginAction(state, skillId); next = { ...next, cooldowns: { ...next.cooldowns, [skillId]: skill.cooldown } }; const stats = calculateStats(next.player); const skillPower = availableSkillPower(next.player, skillId); const skillLevel = availableSkillLevel(next.player, skillId)
+  let next = beginAction(state, 'playerAction', skillId); next = { ...next, cooldowns: { ...next.cooldowns, [skillId]: skill.cooldown } }; const stats = calculateStats(next.player); const skillPower = availableSkillPower(next.player, skillId); const skillLevel = availableSkillLevel(next.player, skillId)
   const origin = { ...next.combat.position }
   let effectPositions: Position[] = [origin]
   let recovered: number | undefined

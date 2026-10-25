@@ -4,6 +4,11 @@ import { DASH_STEPS, GUARD_REDUCTION, POISON_TURNS, SLOW_TURNS, levelMultiplier,
 export type SkillTarget = 'single' | 'line' | 'area' | 'self' | 'dash'
 export interface SkillDefinition { id: SkillId; name: string; description: string; cooldown: number; target: SkillTarget; range: number; multiplier?: number; attackType?: 'physical' | 'magic' }
 
+// 自動発動の優先順位と、通常攻撃でのみ回復するCDの対象を共用する。
+export const OFFENSIVE_SKILL_PRIORITY: readonly SkillId[] = ['strongStrike', 'magicBolt', 'piercingShot', 'shockwave', 'flame', 'poisonStrike', 'slowSpell', 'stunStrike']
+export type CooldownTrigger = 'normalAttack' | 'playerAction'
+export function cooldownTrigger(id: SkillId): CooldownTrigger { return OFFENSIVE_SKILL_PRIORITY.includes(id) ? 'normalAttack' : 'playerAction' }
+
 export const SKILLS: Readonly<Record<SkillId, SkillDefinition>> = {
   strongStrike: { id: 'strongStrike', name: '強撃', description: '隣接1体へ物理2倍', cooldown: 5, target: 'single', range: 1, multiplier: 2, attackType: 'physical' },
   magicBolt: { id: 'magicBolt', name: '魔法弾', description: '射程5の1体へ魔法2倍', cooldown: 5, target: 'single', range: 5, multiplier: 2, attackType: 'magic' },

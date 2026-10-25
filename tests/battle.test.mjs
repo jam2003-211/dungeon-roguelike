@@ -84,7 +84,8 @@ test('杖の通常攻撃は射程内の全敵へ魔法ダメージを与え、�
   const state = battle.createBattleState(withWeapon('test-short-staff'), [enemy('a', 2, 15), enemy('b', 3, 16), enemy('far', 10, 10)])
   const hit = battle.attackWithWeapon(state, { x: 2, y: 16 }, openMap(), () => 1)
   assert.ok(hit.combat.enemies.find((e) => e.id === 'a').hp < state.combat.enemies[0].hp); assert.ok(hit.combat.enemies.find((e) => e.id === 'b').hp < state.combat.enemies[1].hp); assert.equal(hit.combat.enemies.find((e) => e.id === 'far').hp, state.combat.enemies[2].hp)
-  assert.equal(battle.attackWithWeapon(battle.createBattleState(withWeapon('test-short-staff'), []), { x: 2, y: 16 }, openMap()).combat.turn, 1)
+  const empty = battle.createBattleState(withWeapon('test-short-staff'), [])
+  assert.equal(battle.attackWithWeapon(empty, { x: 2, y: 16 }, openMap()), empty)
 })
 
 test('敵撃破時に一度だけ通常・ボス経験値を加算する', () => {
