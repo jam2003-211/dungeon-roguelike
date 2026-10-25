@@ -6,7 +6,7 @@ import type { SavedRun } from './savedRun'
 import { validSavedRun } from './savedRun'
 import { removeLegacyTestEquipment } from './legacyTestEquipment'
 
-export interface SaveData { schemaVersion: 5; savedAt: string; player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
+export interface SaveData { schemaVersion: 6; savedAt: string; player: PlayerState; stocks: DungeonStock[]; run: SavedRun | null }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const integer = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0
@@ -73,7 +73,8 @@ export function validTreasure(value: unknown): value is UnidentifiedTreasure {
 
 function validPlayer(value: unknown): value is PlayerState {
   if (!record(value) || !integer(value.level, 1) || !integer(value.experience) || !integer(value.currentHp) || !member(value.job, JOBS)
-    || !Array.isArray(value.inventory) || !value.inventory.every(validItem) || !Array.isArray(value.treasures) || !value.treasures.every(validTreasure) || !record(value.equipment)) return false
+    || !Array.isArray(value.inventory) || !value.inventory.every(validItem) || !Array.isArray(value.treasures) || !value.treasures.every(validTreasure) || !record(value.equipment)
+    || !Array.isArray(value.specialBossClears) || value.specialBossClears.some((theme) => !['forest', 'ruins', 'castle'].includes(theme)) || new Set(value.specialBossClears).size !== value.specialBossClears.length) return false
   const ids = [...value.inventory.map((item) => item.id), ...value.treasures.map((item) => item.id)]
   if (new Set(ids).size !== ids.length) return false
   const player = value as unknown as PlayerState
@@ -104,10 +105,11 @@ function validDungeon(value: unknown, theme: DungeonStock['theme']): value is Ge
     || !member(value.featuredCategory, subtypes) || !integer(value.visualSeed, 0, 0xffffffff)
     || !Array.isArray(value.floors) || value.floors.length !== value.totalFloors) return false
   for (const floor of value.floors) {
+    const size = floor.specialArena === true ? 13 : 20
     if (!record(floor) || !integer(floor.floor, 1, 15) || !position(floor.start) || !position(floor.stairs)
       || !(floor.chestCandidate === null || position(floor.chestCandidate))
-      || !Array.isArray(floor.map) || floor.map.length !== 20 || !floor.map.every((row) => Array.isArray(row) && row.length === 20 && row.every((tile) => tiles[theme].includes(tile)))
-      || !Array.isArray(floor.enemies) || !floor.enemies.every((enemy) => record(enemy) && text(enemy.id) && member(enemy.kind, ENEMY_DEFINITIONS) && integer(enemy.level, 1) && position(enemy.position) && typeof enemy.isBoss === 'boolean')) return false
+      || !Array.isArray(floor.map) || floor.map.length !== size || !floor.map.every((row) => Array.isArray(row) && row.length === size && row.every((tile) => tiles[theme].includes(tile)))
+      || !Array.isArray(floor.enemies) || !floor.enemies.every((enemy) => record(enemy) && text(enemy.id) && member(enemy.kind, ENEMY_DEFINITIONS) && integer(enemy.level, 1) && position(enemy.position) && typeof enemy.isBoss === 'boolean' && (enemy.specialBoss === undefined || enemy.specialBoss === theme))) return false
     if (new Set(floor.enemies.map((enemy) => enemy.id)).size !== floor.enemies.length) return false
   }
   return validateDungeon(value as unknown as GeneratedDungeon)
@@ -129,14 +131,15 @@ function validStocks(value: unknown): value is DungeonStock[] {
 
 export function readSaveData(value: unknown): SaveData {
   if (!record(value)) throw new Error('セーブデータが不正です。')
-  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4 && value.schemaVersion !== 5) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4 && value.schemaVersion !== 5 && value.schemaVersion !== 6) throw new Error('未対応のセーブデータバージョンです。現在のデータは変更していません。')
   try {
     if (!isJson(value) || !text(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt)) || !record(value.player) || !validStocks(value.stocks)) throw new Error()
     const playerCandidate = JSON.parse(JSON.stringify(value.player)) as Record<string, unknown>
     if (!Object.hasOwn(playerCandidate, 'treasures')) {
-      if (value.schemaVersion === 3 || value.schemaVersion === 4 || value.schemaVersion === 5) throw new Error()
+      if (value.schemaVersion >= 3) throw new Error()
       playerCandidate.treasures = []
     }
+    if (value.schemaVersion < 6) playerCandidate.specialBossClears = []
     const run = value.schemaVersion === 1 ? null : JSON.parse(JSON.stringify(value.run)) as unknown
     if (value.schemaVersion < 4) {
       if (!Array.isArray(playerCandidate.inventory) || !Array.isArray(playerCandidate.treasures)) throw new Error()
@@ -188,7 +191,7 @@ export function readSaveData(value: unknown): SaveData {
       }
     }
     if (run !== null && !validSavedRun(run, player, value.stocks, validTreasure)) throw new Error()
-    const data = JSON.parse(JSON.stringify({ schemaVersion: 5, savedAt: value.savedAt, player, stocks: value.stocks, run })) as SaveData
+    const data = JSON.parse(JSON.stringify({ schemaVersion: 6, savedAt: value.savedAt, player, stocks: value.stocks, run })) as SaveData
     const previousPlayer = data.player
     data.player = removeLegacyTestEquipment(data.player, new Set(data.run?.battle.loot.items.map((item) => item.id) ?? []))
     // 既知の初期IDと旧名称だけを更新し、装備性能・付与効果は一切変更しない。
@@ -206,5 +209,5 @@ export function readSaveData(value: unknown): SaveData {
 }
 
 export function createSaveData(player: PlayerState, stocks: DungeonStock[], now = new Date(), run: SavedRun | null = null): SaveData {
-  return readSaveData({ schemaVersion: 5, savedAt: now.toISOString(), player, stocks, run })
+  return readSaveData({ schemaVersion: 6, savedAt: now.toISOString(), player, stocks, run })
 }

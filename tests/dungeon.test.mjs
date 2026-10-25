@@ -8,9 +8,10 @@ function url(output) { return `data:text/javascript;base64,${Buffer.from(output)
 const mapUrl = url(await transpile('../src/game/forestMap.ts'))
 const levelsUrl = url(await transpile('../src/game/effectLevels.ts'))
 const playerUrl = url((await transpile('../src/game/player.ts')).replace("'./effectLevels'", `'${levelsUrl}'`))
-const combatUrl = url((await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`).replace("'../player'", `'${playerUrl}'`))
+const specialUrl = url(await transpile('../src/game/specialBoss.ts'))
+const combatUrl = url((await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`).replace("'../player'", `'${playerUrl}'`).replace("'../specialBoss'", `'${specialUrl}'`))
 const skillsUrl = url((await transpile('../src/game/skills.ts')).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`))
-const battleUrl = url((await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`))
+const battleUrl = url((await transpile('../src/game/battle.ts')).replace("'./forestMap'", `'${mapUrl}'`).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./skills'", `'${skillsUrl}'`).replace("'./player'", `'${playerUrl}'`).replace("'./effectLevels'", `'${levelsUrl}'`).replace("'./specialBoss'", `'${specialUrl}'`))
 const dungeonUrl = url((await transpile('../src/game/dungeon.ts')).replace("'./combat/combat'", `'${combatUrl}'`).replace("'./forestMap'", `'${mapUrl}'`).replace("'./player'", `'${playerUrl}'`))
 const runUrl = url((await transpile('../src/game/dungeonRun.ts')).replace("'./battle'", `'${battleUrl}'`).replace("'./dungeon'", `'${dungeonUrl}'`).replace("'./player'", `'${playerUrl}'`))
 const dungeon = await import(dungeonUrl); const dungeonRun = await import(runUrl); const player = await import(playerUrl); const combat = await import(combatUrl)
@@ -88,11 +89,11 @@ test('100回の小部屋生成で全敵種・到達可能性・配置・敵数�
   assert.equal(appearedKinds.size, 6)
 })
 
-test('ボスは選択敵種・指定Lv・既存倍率を使用する', () => {
+test('ボスは選択敵種・指定Lv・槍12回分のHPを使用する', () => {
   const generated = dungeon.createDungeon(17, 'castle', withFloor(1, 77)); const floor = generated.floors[0]
   const spawn = floor.enemies.find((enemy) => enemy.isBoss); assert.ok(spawn); assert.equal(spawn.level, 17); assert.equal(generated.enemyKinds.includes(spawn.kind), true)
   const boss = dungeon.instantiateEnemies(floor).find((enemy) => enemy.isBoss); const normal = combat.createEnemy('normal', spawn.kind, 17, spawn.position)
-  assert.equal(boss.maxHp, normal.maxHp * 3); assert.equal(boss.attack, Math.floor(normal.attack * 1.5)); assert.equal(player.enemyExperience(17, true), player.enemyExperience(17, false) * 5)
+  assert.equal(boss.maxHp, combat.referenceSpearDamage(17) * 12); assert.equal(boss.attack, Math.floor(normal.attack * 1.5)); assert.equal(player.enemyExperience(17, true), player.enemyExperience(17, false) * 5)
 })
 
 test('再探索は固定初期データを復元し、探索中の変更を持ち込まない', () => {

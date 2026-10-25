@@ -5,10 +5,26 @@ import { basename, dirname, extname, join, resolve, relative, sep } from 'node:p
 import { tmpdir } from 'node:os'
 import { build } from 'vite'
 import { startBrowser } from './pwa-browser-driver.mjs'
-import { pwaFixture } from './pwa-fixture.mjs'
+import { loadGameModule as load, pwaFixture } from './pwa-fixture.mjs'
 
 const temporary = mkdtempSync(join(tmpdir(), 'roguelike-pwa-'))
 const fixture = await pwaFixture()
+async function specialBossFixture() {
+  const dungeon = await load('game/dungeon'), player = await load('game/player'), runs = await load('game/dungeonRun')
+  const loot = await load('game/loot'), saves = await load('persistence/saveData'), savedRun = await load('persistence/savedRun')
+  let first = true, seed = 91
+  const random = () => { if (first) { first = false; return .05 } seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }
+  const initial = player.createPlayerState()
+  const weapon = { ...initial.inventory[0], level: 100, basePhysical: player.weaponBaseAttack(100, 'sword') }
+  const armor = { ...initial.inventory[1], baseHp: 100000 }
+  const hero = { ...initial, level: 100, inventory: [weapon, armor], currentHp: 0 }
+  hero.currentHp = player.calculateStats(hero).maxHp
+  const generated = dungeon.createDungeon(100, 'forest', random)
+  const stocks = [{ ...dungeon.createDungeonStocks()[0], dungeon: generated, highestFloor: 1, totalFloorsKnown: true }, ...dungeon.createDungeonStocks().slice(1)]
+  const run = runs.startDungeonRun(hero, generated); run.battle.loot = loot.createLootState(generated, () => 0)
+  return saves.createSaveData(hero, stocks, new Date(), savedRun.captureRun(1, 1, run.battle, 100))
+}
+const bossFixture = await specialBossFixture()
 const walk = (path) => readdirSync(path, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walk(join(path, entry.name)) : [join(path, entry.name)])
 const images = walk(resolve('public')).filter((path) => /\.(png|svg)$/.test(path)).map((path) => relative(resolve('public'), path).split(sep).join('/'))
 const database = `async (value) => {
@@ -118,7 +134,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     }
     const clickCell=async(position)=>page.evaluate(`(()=>{const canvas=document.querySelector('.dungeon-map'),origin=JSON.parse(canvas.dataset.cameraOrigin),bounds=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:bounds.left+(${position.x}-origin.x+.5)*bounds.width/11,clientY:bounds.top+(${position.y}-origin.y+.5)*bounds.height/11}))})()`)
     await page.click('拾う'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
-    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,5)
+    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,6)
     await page.reload();await page.click('探索を再開');await page.waitFor("document.querySelector('.dungeon-map')",'オフライン再起動に失敗')
     assert.deepEqual(await read(),offlineSave);await clickCell(chest.position);assert.deepEqual(await read(),offlineSave,'二重報酬が発生しました')
     for(const width of [360,390,430]){
@@ -149,7 +165,23 @@ async function checkBuild(base, outDir, profileDirectory) {
     const beforeUpdate=await read();await page.click('更新する')
     await page.waitFor("window.__updateMarker!==true && document.querySelector('.title-start') && !document.querySelector('.title-start').disabled",'更新が完了しません')
     assert.deepEqual(await read(),beforeUpdate,'SW更新で保存データが変化しました')
-    assert.equal((await read()).schemaVersion,5)
+    assert.equal((await read()).schemaVersion,6)
+    if (base === '/') {
+      // 実際のSW制御下・ネットワーク遮断下で13×13ボス戦とIndexedDB再開を確認。
+      await page.evaluate(`(${database})(${JSON.stringify(bossFixture)})`)
+      networkAvailable=false
+      await page.command('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0})
+      await page.reload(); await page.click('探索を再開')
+      await page.waitFor("document.querySelector('.dungeon-map')?.dataset.mapSize==='13'",'オフライン特殊ボス階を再開できません')
+      assert.equal(await page.evaluate(`(async()=>{const image=new Image();image.src=${JSON.stringify(appUrl+'assets/bosses/treant.png')};await image.decode();return image.naturalWidth===128})()`),true)
+      for(let i=0;i<7;i++) await move('上')
+      const hpBefore=(await read()).run.battle.combat.enemies[0].hp
+      await page.click('攻撃'); await saved('data.run.battle.combat.turn===8')
+      const bossSave=await read(); assert.ok(bossSave.run.battle.combat.enemies[0].hp<hpBefore)
+      await page.reload(); await page.click('探索を再開')
+      await page.waitFor("document.querySelector('.dungeon-map')?.dataset.mapSize==='13'",'ボス攻撃後のオフライン再開に失敗')
+      assert.deepEqual(await read(),bossSave,'ボス戦のHP・予告・位置が再開時に変化しました')
+    }
     assert.deepEqual(page.errors,[],'アプリの実行時エラーが発生しました')
     assert.deepEqual(wrongPaths,[],'サブパス外または欠落したリソースへアクセスしました')
     console.log(`PWA ${base}: Manifest/SW/scope、全${images.length}画像のオフライン読み込み、操作・取得・自動保存・再開・更新・360/390/430表示が成功`)

@@ -43,6 +43,18 @@ export function drawBattleEffect(c: CanvasRenderingContext2D, event: BattleEffec
   c.translate((event.position.x - camera.x + .5) * CELL, (event.position.y - camera.y + .5) * CELL)
   c.globalAlpha = Math.min(1, (1 - p) * 2)
   c.lineWidth = 3; c.strokeStyle = '#fff3b0'; c.fillStyle = '#fff3b0'
+  if (event.kind === 'boss') {
+    const palette = event.theme === 'forest' ? ['#7fb654', '#704c31'] : event.theme === 'ruins' ? ['#84c2e5', '#9aa2ab'] : ['#ff665b', '#b169db']
+    c.strokeStyle = palette[0]; c.fillStyle = palette[1]; c.lineWidth = 2
+    if (event.effect === 'charge' || event.effect === 'sweep' || event.effect === 'flameWave' || event.effect === 'cross') {
+      line(c, -16, -16 + p * 8, 16, 16 - p * 8); line(c, -16, 16 - p * 8, 16, -16 + p * 8)
+    } else if (event.effect === 'surround' || event.effect === 'doubleBurst') {
+      star(c, 0, 0, 8 + p * 13, 5)
+    } else {
+      ring(c, 5 + p * 16); cross(c, 0, 0, 8 + p * 14)
+    }
+    c.restore(); return
+  }
   switch (`${event.kind}:${event.effect}`) {
     case 'skill:strongStrike':
       c.lineWidth = 6; slash(c, 21 * (.5 + p)); c.strokeStyle = '#fff'; c.lineWidth = 2; slash(c, 18); break

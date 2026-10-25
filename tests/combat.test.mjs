@@ -14,7 +14,8 @@ const levelsOutput = await transpile('../src/game/effectLevels.ts')
 const levelsUrl = `data:text/javascript;base64,${Buffer.from(levelsOutput).toString('base64')}`
 const playerOutput = (await transpile('../src/game/player.ts')).replace("'./effectLevels'", `'${levelsUrl}'`)
 const playerUrl = `data:text/javascript;base64,${Buffer.from(playerOutput).toString('base64')}`
-const combatOutput = (await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`).replace("'../player'", `'${playerUrl}'`)
+const specialUrl = `data:text/javascript;base64,${Buffer.from(await transpile('../src/game/specialBoss.ts')).toString('base64')}`
+const combatOutput = (await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`).replace("'../player'", `'${playerUrl}'`).replace("'../specialBoss'", `'${specialUrl}'`)
 const combat = await import(`data:text/javascript;base64,${Buffer.from(combatOutput).toString('base64')}`)
 
 function openMap(obstacles = []) {
@@ -31,11 +32,11 @@ test('敵6種類の基礎能力値・索敵距離・準備ターンが定義ど�
   ])
 })
 
-test('敵レベルとボス倍率を整数式で反映する', () => {
+test('敵レベルと通常ボスの槍12回分HPを整数式で反映する', () => {
   const normal = combat.createEnemy('e', 'boar', 4, { x: 5, y: 5 })
   assert.equal(normal.maxHp, 50); assert.equal(normal.attack, 32)
   const boss = combat.createEnemy('b', 'boar', 4, { x: 5, y: 5 }, true)
-  assert.equal(boss.maxHp, 150); assert.equal(boss.attack, 48)
+  assert.equal(boss.maxHp, combat.referenceSpearDamage(4) * 12); assert.equal(boss.attack, 48)
 })
 
 test('索敵はマンハッタン距離の境界を含み、障害物で視線が遮られる', () => {

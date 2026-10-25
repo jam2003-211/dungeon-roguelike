@@ -3,6 +3,7 @@ import { runSaveBrowserChecks, databaseAccess } from './save-browser.mjs'
 import { createFixturePlayer } from './equipment-fixture.mjs'
 import { runResumeBrowserChecks } from './resume-browser.mjs'
 import { runBattleEffectsBrowserChecks } from './battle-effects-browser.mjs'
+import { runBossBrowserChecks } from './boss-browser.mjs'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -640,6 +641,7 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     await waitFor(`(${databaseAccess})().then((data)=>data?.run===null)`, '防御テスト後の帰還状態が保存されません。')
   }
   await runBattleEffectsBrowserChecks({ evaluate, command, waitFor, captureScreen })
+  await runBossBrowserChecks({ evaluate, command, clickButton, clickExactButton, assertScreen, waitFor, captureScreen })
   assert.deepEqual(exceptions, [], `ブラウザエラーが発生しました: ${exceptions.join(', ')}`)
   if (process.env.SCREENSHOT_PATH) {
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })

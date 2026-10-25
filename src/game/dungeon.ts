@@ -11,6 +11,7 @@ export interface EnemySpawn {
   level: number
   position: Position
   isBoss: boolean
+  specialBoss?: DungeonTheme
 }
 
 export interface DungeonFloor {
@@ -20,6 +21,7 @@ export interface DungeonFloor {
   stairs: Position
   chestCandidate: Position | null
   enemies: EnemySpawn[]
+  specialArena?: boolean
 }
 
 export interface GeneratedDungeon {
@@ -58,6 +60,20 @@ const ROOM_GRID_SIZE = 3
 const ROOM_SLOT_SIZE = 6
 const MIN_ROOM_SIZE = 3
 const MAX_ROOM_SIZE = 5
+export const SPECIAL_BOSS_LEVEL = 91
+export const SPECIAL_ARENA_SIZE = 13
+export const SPECIAL_BOSS_POSITION: Position = { x: 5, y: 2 }
+export const SPECIAL_REWARD_POSITIONS: readonly Position[] = [{ x: 4, y: 7 }, { x: 6, y: 7 }, { x: 8, y: 7 }]
+
+function createSpecialFloor(theme: DungeonTheme, floor: number, level: number, bossKind: EnemyKind): DungeonFloor {
+  const ground = DUNGEON_THEMES[theme].ground
+  return {
+    floor, specialArena: true,
+    map: Array.from({ length: SPECIAL_ARENA_SIZE }, () => Array.from({ length: SPECIAL_ARENA_SIZE }, () => ground)),
+    start: { x: 6, y: 11 }, stairs: { x: 6, y: 10 }, chestCandidate: null,
+    enemies: [{ id: `f${floor}-boss`, kind: bossKind, level, position: { ...SPECIAL_BOSS_POSITION }, isBoss: true, specialBoss: theme }],
+  }
+}
 
 export function createDungeonStocks(): DungeonStock[] {
   return [
@@ -176,7 +192,9 @@ export function createDungeon(level: number, theme: DungeonTheme, random: () => 
   const enemyKinds = shuffled(ALL_ENEMIES, random)
   const bossKind = enemyKinds[integer(random, 0, enemyKinds.length - 1)]
   const featuredCategory = CATEGORIES[integer(random, 0, CATEGORIES.length - 1)]
-  const floors = Array.from({ length: totalFloors }, (_, index) => createFloor(theme, index + 1, totalFloors, level, enemyKinds, bossKind, random))
+  const floors = Array.from({ length: totalFloors }, (_, index) => level >= SPECIAL_BOSS_LEVEL && index + 1 === totalFloors
+    ? createSpecialFloor(theme, index + 1, level, bossKind)
+    : createFloor(theme, index + 1, totalFloors, level, enemyKinds, bossKind, random))
   // 地形・敵配置の乱数列を変えないよう、生成後に外観専用シードを取る。
   const visualSeed = integer(random, 0, 0xffffffff)
   const dungeon: GeneratedDungeon = { visualSeed, version: 1, level, totalFloors, enemyKinds, bossKind, featuredCategory, floors }
@@ -187,6 +205,15 @@ export function createDungeon(level: number, theme: DungeonTheme, random: () => 
 export function validateDungeon(dungeon: GeneratedDungeon): boolean {
   if (dungeon.version !== 1 || dungeon.floors.length !== dungeon.totalFloors || dungeon.totalFloors < 1 || dungeon.totalFloors > 15 || dungeon.enemyKinds.length < 3 || dungeon.enemyKinds.length > ALL_ENEMIES.length || new Set(dungeon.enemyKinds).size !== dungeon.enemyKinds.length || dungeon.enemyKinds.some((kind) => !ALL_ENEMIES.includes(kind)) || !dungeon.enemyKinds.includes(dungeon.bossKind)) return false
   return dungeon.floors.every((floor, index) => {
+    if (floor.specialArena) {
+      const boss = floor.enemies[0]
+      return index + 1 === dungeon.totalFloors && dungeon.level >= SPECIAL_BOSS_LEVEL
+        && floor.map.length === SPECIAL_ARENA_SIZE && floor.map.every((row) => row.length === SPECIAL_ARENA_SIZE && row.every((tile) => tile === floor.map[0][0]))
+        && ['grass', 'ruinsFloor', 'castleFloor'].includes(floor.map[0][0])
+        && floor.enemies.length === 1 && boss?.specialBoss !== undefined && boss.kind === dungeon.bossKind
+        && boss.level === dungeon.level && boss.isBoss && key(boss.position) === key(SPECIAL_BOSS_POSITION)
+        && key(floor.start) === '6,11' && key(floor.stairs) === '6,10' && floor.chestCandidate === null
+    }
     if (floor.floor !== index + 1 || floor.map.length !== MAP_SIZE || floor.map.some((row) => row.length !== MAP_SIZE)) return false
     const distances = reachableDistances(floor.map, floor.start); const positions = [floor.start, floor.stairs, ...floor.enemies.map((enemy) => enemy.position)]
     if (!isPassable(floor.map, floor.start) || !isPassable(floor.map, floor.stairs) || !distances.has(key(floor.stairs)) || new Set(positions.map(key)).size !== positions.length) return false
@@ -199,12 +226,12 @@ export function validateDungeon(dungeon: GeneratedDungeon): boolean {
     const final = floor.floor === dungeon.totalFloors; const bosses = floor.enemies.filter((enemy) => enemy.isBoss)
     if (final ? bosses.length !== 1 || bosses[0].kind !== dungeon.bossKind || bosses[0].level !== dungeon.level || floor.enemies.length < (legacyObstacles ? 3 : 4) || floor.enemies.length > (legacyObstacles ? 5 : 6) : bosses.length !== 0 || floor.enemies.length < (legacyObstacles ? 5 : 6) || floor.enemies.length > (legacyObstacles ? 8 : 9)) return false
     if (!final && (!floor.chestCandidate || !isPassable(floor.map, floor.chestCandidate) || (distances.get(key(floor.chestCandidate)) ?? 0) < 10 || positions.some((position) => key(position) === key(floor.chestCandidate!)))) return false
-    return floor.enemies.every((enemy) => dungeon.enemyKinds.includes(enemy.kind) && isPassable(floor.map, enemy.position) && enemy.level >= 1 && Math.abs(enemy.level - dungeon.level) <= 5)
+    return floor.enemies.every((enemy) => !enemy.specialBoss && dungeon.enemyKinds.includes(enemy.kind) && isPassable(floor.map, enemy.position) && enemy.level >= 1 && Math.abs(enemy.level - dungeon.level) <= 5)
   })
 }
 
 export function instantiateEnemies(floor: DungeonFloor): EnemyState[] {
-  return floor.enemies.map((enemy) => createEnemy(enemy.id, enemy.kind, enemy.level, enemy.position, enemy.isBoss))
+  return floor.enemies.map((enemy) => createEnemy(enemy.id, enemy.kind, enemy.level, enemy.position, enemy.isBoss, enemy.specialBoss))
 }
 
 export function replaceDungeonStock(stocks: DungeonStock[], stockId: DungeonStockId, dungeon: GeneratedDungeon): DungeonStock[] {

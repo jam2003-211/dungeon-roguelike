@@ -31,7 +31,7 @@ export interface EquipmentItem {
 export interface UnidentifiedTreasure { id: string; level: number; item: EquipmentItem }
 
 export interface EquipmentSlots { weapon: string | null; armor: string | null; accessory1: string | null; accessory2: string | null }
-export interface PlayerState { level: number; experience: number; currentHp: number; job: JobId; inventory: EquipmentItem[]; treasures: UnidentifiedTreasure[]; equipment: EquipmentSlots }
+export interface PlayerState { level: number; experience: number; currentHp: number; job: JobId; inventory: EquipmentItem[]; treasures: UnidentifiedTreasure[]; equipment: EquipmentSlots; specialBossClears: ('forest' | 'ruins' | 'castle')[] }
 export interface PlayerStats { maxHp: number; physical: number; magic: number }
 
 export const RARITY_MULTIPLIERS: Readonly<Record<Rarity, number>> = { common: 1, rare: 1.25, epic: 1.5, legendary: 2 }
@@ -88,7 +88,7 @@ export function createPlayerState(): PlayerState {
   return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', treasures: [], inventory: [
     { id: 'initial-sword', name: '剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: weaponBaseAttack(1, 'sword'), baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
     { id: 'initial-armor', name: '軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
-  ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
+  ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null }, specialBossClears: [] }
 }
 export function canEquip(jobId: JobId, item: EquipmentItem): boolean { if (item.category === 'accessory') return true; const job = JOBS[jobId]; return item.category === 'weapon' ? (job.weapons as readonly string[]).includes(item.subtype) : (job.armors as readonly string[]).includes(item.subtype) }
 export function isEquipped(player: PlayerState, id: string): boolean { return Object.values(player.equipment).includes(id) }

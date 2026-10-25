@@ -1,10 +1,10 @@
 import { SUBTYPE_LABELS, weaponBaseAttack, type EquipmentCategory, type EquipmentItem, type SkillId, type SpecialEffectId, type UnidentifiedTreasure } from './player'
 import { EFFECT_PREFIXES, SKILL_PREFIXES, rollEffectLevel } from './effectLevels'
-import type { GeneratedDungeon } from './dungeon'
+import { SPECIAL_REWARD_POSITIONS, type GeneratedDungeon } from './dungeon'
 import type { Position } from './forestMap'
 import type { BattleState } from './battle'
 
-export interface LootChest { floor: number; position: Position; opened: boolean }
+export interface LootChest { floor: number; position: Position; opened: boolean; item?: EquipmentItem }
 export interface LootState {
   chests: LootChest[]
   items: UnidentifiedTreasure[]
@@ -85,7 +85,10 @@ export function resolveEnemyLoot(before: BattleState, after: BattleState, dungeo
   for (const enemy of before.combat.enemies) {
     if (remaining.has(enemy.id) || next.loot!.resolvedEnemyIds.includes(enemy.id)) continue
     next = { ...next, loot: { ...next.loot!, resolvedEnemyIds: [...next.loot!.resolvedEnemyIds, enemy.id] } }
-    if (enemy.isBoss || random() < .05) next = receiveItem(next, generateEquipment(dungeon, random, createId))
+    if (enemy.specialBoss) {
+      const theme = enemy.specialBoss
+      next = { ...next, player: { ...next.player, specialBossClears: [...new Set([...(next.player.specialBossClears ?? []), theme])] }, loot: { ...next.loot!, chests: [...next.loot!.chests, ...SPECIAL_REWARD_POSITIONS.map((position) => ({ floor: dungeon.totalFloors, position: { ...position }, opened: false, item: generateEquipment(dungeon, random, createId) }))] } }
+    } else if (enemy.isBoss || random() < .05) next = receiveItem(next, generateEquipment(dungeon, random, createId))
   }
   return next
 }
@@ -94,7 +97,7 @@ export function openLootChest(battle: BattleState, floor: number, target: Positi
   if (!battle.loot || battle.combat.finished || battle.combat.position.x !== target.x || battle.combat.position.y !== target.y) return battle
   const chest = battle.loot.chests.find((candidate) => candidate.floor === floor && candidate.position.x === target.x && candidate.position.y === target.y)
   if (!chest || chest.opened) return battle
-  const item = generateEquipment(dungeon, random, createId)
+  const item = chest.item ?? generateEquipment(dungeon, random, createId)
   const next = { ...battle, loot: { ...battle.loot, chests: battle.loot.chests.map((candidate) => candidate === chest ? { ...candidate, opened: true } : candidate) } }
   return receiveItem(next, item)
 }

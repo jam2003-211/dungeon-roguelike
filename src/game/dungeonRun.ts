@@ -15,6 +15,7 @@ export function startDungeonRun(player: PlayerState, dungeon: GeneratedDungeon):
 export function advanceDungeonRun(run: DungeonRunState, dungeon: GeneratedDungeon): { run: DungeonRunState; cleared: boolean } {
   const floor = dungeon.floors[run.currentFloor - 1]
   const action = stairAction(floor, dungeon.totalFloors, run.battle.combat.position, run.battle.combat.enemies)
+  if (action === 'clear' && floor.specialArena && run.battle.loot?.chests.some((chest) => chest.floor === floor.floor && !chest.opened)) return { run, cleared: false }
   if (action === 'clear') return { run, cleared: true }
   if (action !== 'next') return { run, cleared: false }
   const nextNumber = run.currentFloor + 1; const nextFloor = dungeon.floors[nextNumber - 1]

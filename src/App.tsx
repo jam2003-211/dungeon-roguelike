@@ -166,7 +166,7 @@ function App() {
   switch (navigation.current) {
     case 'title': return <TitleScreen saveControls={saveControls} onStart={() => openScreen('town')} />
     case 'town': return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
-    case 'dungeon': return <DungeonScreen playerLevel={player.level} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
+    case 'dungeon': return <DungeonScreen playerLevel={player.level} specialBossClears={player.specialBossClears} stocks={stocks} onBack={goBack} onGenerate={generateDungeon} onStart={startExploration} />
     case 'exploration':
       if (!activeRun || !activeStock || !activeDungeon || !activeFloor) return <TownScreen saveControls={saveControls} player={player} onNavigate={openScreen} />
       return <ExplorationScreen visualSeed={activeDungeon.visualSeed ?? 0} theme={activeStock.theme} onOpenChest={handleOpenChest} onClearLootNotice={() => setExploration((current) => current.loot ? { ...current, loot: { ...current.loot, notices: current.loot.notices.slice(1) } } : current)} onTestApproachChest={() => setExploration((current) => {

@@ -1,10 +1,13 @@
 import type { CombatState } from './combat/combat'
 import type { Position } from './forestMap'
 import type { SkillId, SpecialEffectId } from './player'
+import type { DungeonTheme } from './dungeon'
+import type { BossPattern } from './specialBoss'
 
 // 1行動の確定結果だけを表す表示用情報。乱数判定や保存には使用しない。
 export type BattleEffect = { kind: 'skill'; effect: SkillId; position: Position; from: Position; value?: number }
   | { kind: 'special'; effect: SpecialEffectId; position: Position; from: Position; value?: number }
+  | { kind: 'boss'; effect: BossPattern; theme: DungeonTheme; position: Position; from: Position; value?: number }
 export const BATTLE_EFFECT_DURATION = 420
 
 export interface CombatVisual { id: string; position: Position; damage: number; kind: 'enemy' | 'player' }

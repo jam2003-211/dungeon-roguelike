@@ -1,4 +1,5 @@
 import type { EnemyKind } from './game/combat/combat'
+import type { DungeonTheme } from './game/dungeon'
 import type { ArmorType, EquipmentItem, JobId, SkillId, WeaponType } from './game/player'
 
 const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
@@ -23,6 +24,12 @@ export const enemyFallbackPaths: Readonly<Record<EnemyKind, string>> = {
   cyclopsBat: assetUrl('assets/enemies/cyclops-bat.svg'),
   stoneGolem: assetUrl('assets/enemies/stone-golem.svg'),
   ghost: assetUrl('assets/enemies/ghost.svg'),
+}
+
+export const specialBossAssetPaths: Readonly<Record<DungeonTheme, string>> = {
+  forest: assetUrl('assets/bosses/treant.png'),
+  ruins: assetUrl('assets/bosses/guardian.png'),
+  castle: assetUrl('assets/bosses/demon_king.png'),
 }
 
 export const jobAssetPaths: Readonly<Record<JobId, string>> = {

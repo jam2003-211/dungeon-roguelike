@@ -6,6 +6,7 @@ import { BURN_TURNS, CRITICAL_MULTIPLIER, DASH_STEPS, GUARD_REDUCTION, KNOCKBACK
 import type { Direction } from './exploration'
 import type { LootState } from './loot'
 import type { BattleEffect } from './combatVisuals'
+import { bossCells, distanceToBoss, occupiesBoss } from './specialBoss'
 
 export interface BattleState { combat: CombatState; player: PlayerState; cooldowns: Partial<Record<SkillId, number>>; guardTurns: number; levelNotices: number[]; experienceEarned: number; loot?: LootState; actionNotice?: { turn: number; label: string; skillId?: SkillId }; visualEvents?: BattleEffect[] }
 export const WEAPON_RANGES: Readonly<Record<WeaponType, number>> = { sword: 1, spear: 2, bow: 3, shortStaff: 2, longStaff: 3 }
@@ -53,19 +54,21 @@ function decrementCooldowns(cooldowns: BattleState['cooldowns'], action: Cooldow
 function beginAction(state: BattleState, action: CooldownTrigger = 'playerAction', used?: SkillId): BattleState { return tickStatuses({ ...state, visualEvents: [], cooldowns: decrementCooldowns(state.cooldowns, action, used), guardTurns: used === 'guard' ? state.guardTurns : Math.max(0, state.guardTurns - 1) }) }
 function finishAction(prepared: BattleState, combat: CombatState, map: ForestMap): BattleState {
   const hpBefore = combat.playerHp; const processed = processEnemyTurn(combat, map); let hp = processed.playerHp; let guardTurns = prepared.guardTurns
+  const bossEffects: BattleEffect[] = (processed.bossEvents ?? []).flatMap((event) => event.cells.map((position) => ({ kind: 'boss' as const, effect: event.pattern, theme: event.theme, position, from: event.from })))
+  const { bossEvents: _bossEvents, ...stableCombat } = processed
   if (hp < hpBefore && guardTurns > 0) { hp = hpBefore - Math.floor((hpBefore - hp) * (1 - GUARD_REDUCTION[availableSkillLevel(prepared.player, 'guard') - 1])); guardTurns = 0 }
   const stats = calculateStats(prepared.player); const player = { ...prepared.player, currentHp: Math.min(stats.maxHp, hp) }
-  return { ...prepared, player, guardTurns, combat: { ...processed, playerHp: player.currentHp, playerMaxHp: stats.maxHp, finished: player.currentHp <= 0 } }
+  return { ...prepared, player, guardTurns, visualEvents: [...(prepared.visualEvents ?? []), ...bossEffects], combat: { ...stableCombat, playerHp: player.currentHp, playerMaxHp: stats.maxHp, finished: player.currentHp <= 0 } }
 }
 
 export function moveBattlePlayer(state: BattleState, direction: Direction, map: ForestMap = FOREST_MAP): BattleState {
   if (state.combat.finished) return state; const offset = offsets[direction]; const destination = { x: state.combat.position.x + offset.x, y: state.combat.position.y + offset.y }
-  if (!isPassable(map, destination) || state.combat.enemies.some((enemy) => same(enemy.position, destination))) return state
+  if (!isPassable(map, destination) || state.combat.enemies.some((enemy) => occupiesBoss(enemy.position, destination, Boolean(enemy.specialBoss)))) return state
   const prepared = beginAction(state); return finishAction(prepared, { ...prepared.combat, position: destination, turn: prepared.combat.turn + 1 }, map)
 }
 
 function applyStatus(enemy: EnemyState, effect: SpecialEffectId, level: EffectLevel = 1): EnemyState { const statuses = enemy.statuses ?? { poison: 0, burn: 0, slow: 0, stun: 0 }; if (effect === 'poison') return { ...enemy, statuses: { ...statuses, poison: POISON_TURNS[level - 1] } }; if (effect === 'burn') return { ...enemy, statuses: { ...statuses, burn: BURN_TURNS[level - 1] } }; if (effect === 'slow') return { ...enemy, statuses: { ...statuses, slow: SLOW_TURNS[level - 1] } }; if (effect === 'stun') return (('stunRecovery' in statuses ? statuses.stunRecovery ?? 0 : 0) > 0) ? enemy : { ...enemy, statuses: { ...statuses, stun: 1, stunRecovery: 2 } }; return enemy }
-function knockback(enemy: EnemyState, source: Position, enemies: EnemyState[], map: ForestMap, steps: number): EnemyState { const dx = Math.sign(enemy.position.x - source.x); const dy = dx === 0 ? Math.sign(enemy.position.y - source.y) : 0; let position = enemy.position; for (let step = 0; step < steps; step += 1) { const next = { x: position.x + dx, y: position.y + dy }; if (!isPassable(map, next) || enemies.some((other) => other.id !== enemy.id && same(other.position, next))) break; position = next } return { ...enemy, position, warning: null } }
+function knockback(enemy: EnemyState, source: Position, enemies: EnemyState[], map: ForestMap, steps: number): EnemyState { if (enemy.specialBoss) return enemy; const dx = Math.sign(enemy.position.x - source.x); const dy = dx === 0 ? Math.sign(enemy.position.y - source.y) : 0; let position = enemy.position; for (let step = 0; step < steps; step += 1) { const next = { x: position.x + dx, y: position.y + dy }; if (!isPassable(map, next) || enemies.some((other) => other.id !== enemy.id && occupiesBoss(other.position, next, Boolean(other.specialBoss)))) break; position = next } return { ...enemy, position, warning: null } }
 
 function damageEnemies(state: BattleState, ids: Set<string>, damage: number, effect: SpecialEffectId | null, proc: boolean, map: ForestMap, level: EffectLevel = 1, allowExtra = true): BattleState {
   const before = state.combat.enemies; let healing = 0
@@ -117,12 +120,12 @@ export function attackWithWeapon(state: BattleState, target: Position, map: Fore
   const type = weaponType(state.player)
   const magic = type === 'shortStaff' || type === 'longStaff'
   const cells = magic ? getPlayerAttackCells(state.player, state.combat.position, map) : []
-  if (!state.combat.enemies.some((enemy) => enemy.hp > 0 && (magic ? cells.some((cell) => same(cell, enemy.position)) : same(enemy.position, target)))) return state
+  if (!state.combat.enemies.some((enemy) => enemy.hp > 0 && (magic ? cells.some((cell) => occupiesBoss(enemy.position, cell, Boolean(enemy.specialBoss))) : occupiesBoss(enemy.position, target, Boolean(enemy.specialBoss))))) return state
   const damage = Math.max(1, Math.floor(magic ? stats.magic : stats.physical))
   const weapon = equippedWeapon(state.player)
   const effect = weapon?.specialEffect ?? null
   const proc = effect !== null && random() < (weapon?.effectRate ?? .1)
-  const prepared = beginAction(state, 'normalAttack'); const ids = new Set(prepared.combat.enemies.filter((enemy) => magic ? cells.some((cell) => same(cell, enemy.position)) : same(enemy.position, target)).map((enemy) => enemy.id))
+  const prepared = beginAction(state, 'normalAttack'); const ids = new Set(prepared.combat.enemies.filter((enemy) => magic ? cells.some((cell) => occupiesBoss(enemy.position, cell, Boolean(enemy.specialBoss))) : occupiesBoss(enemy.position, target, Boolean(enemy.specialBoss))).map((enemy) => enemy.id))
   const damaged = damageEnemies(prepared, ids, damage, effect, proc, map, weapon?.specialEffectLevel ?? 1)
   return finishAction(damaged, { ...damaged.combat, turn: damaged.combat.turn + 1 }, map)
 }
@@ -139,7 +142,7 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
     const step = { x: Math.sign(target.x - origin.x), y: Math.sign(target.y - origin.y) }
     for (let index = 1; index <= distance; index += 1) {
       const cell = { x: origin.x + step.x * index, y: origin.y + step.y * index }
-      if (!isPassable(map, cell) || state.combat.enemies.some((enemy) => same(enemy.position, cell))) return state
+      if (!isPassable(map, cell) || state.combat.enemies.some((enemy) => occupiesBoss(enemy.position, cell, Boolean(enemy.specialBoss)))) return state
     }
   }
   let next = beginAction(state, 'playerAction', skillId); next = { ...next, cooldowns: { ...next.cooldowns, [skillId]: skill.cooldown } }; const stats = calculateStats(next.player); const skillPower = availableSkillPower(next.player, skillId); const skillLevel = availableSkillLevel(next.player, skillId)
@@ -148,7 +151,7 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
   let recovered: number | undefined
   if (skillId === 'smallHeal' || skillId === 'largeHeal') { const rate = (skillId === 'smallHeal' ? .2 : .4) * skillPower; const hp = Math.min(stats.maxHp, next.player.currentHp + Math.ceil(stats.maxHp * rate)); recovered = hp - next.player.currentHp; next = { ...next, player: { ...next.player, currentHp: hp }, combat: { ...next.combat, playerHp: hp } } }
   else if (skillId === 'guard') next = { ...next, guardTurns: 3 }
-  else if (skillId === 'dash' && target) { const direction: Direction = target.x > next.combat.position.x ? 'right' : target.x < next.combat.position.x ? 'left' : target.y > next.combat.position.y ? 'down' : 'up'; let position = next.combat.position; const steps = Math.min(DASH_STEPS[skillLevel - 1], manhattanDistance(position, target)); for (let i = 0; i < steps; i += 1) { const candidate = { x: position.x + offsets[direction].x, y: position.y + offsets[direction].y }; if (!isPassable(map, candidate) || next.combat.enemies.some((enemy) => same(enemy.position, candidate))) break; position = candidate } next = { ...next, combat: { ...next.combat, position } } }
+  else if (skillId === 'dash' && target) { const direction: Direction = target.x > next.combat.position.x ? 'right' : target.x < next.combat.position.x ? 'left' : target.y > next.combat.position.y ? 'down' : 'up'; let position = next.combat.position; const steps = Math.min(DASH_STEPS[skillLevel - 1], manhattanDistance(position, target)); for (let i = 0; i < steps; i += 1) { const candidate = { x: position.x + offsets[direction].x, y: position.y + offsets[direction].y }; if (!isPassable(map, candidate) || next.combat.enemies.some((enemy) => occupiesBoss(enemy.position, candidate, Boolean(enemy.specialBoss)))) break; position = candidate } next = { ...next, combat: { ...next.combat, position } } }
   else {
     const targets = getSkillAffectedEnemies(next, skillId, target, map)
     if ((skill.multiplier || ['slowSpell'].includes(skillId)) && targets.length === 0) return state
@@ -164,11 +167,12 @@ export function useSkill(state: BattleState, skillId: SkillId, target?: Position
 // 自動選択と実発動で同じ効果範囲を共有する。
 export function getSkillAffectedEnemies(state: BattleState, skillId: SkillId, target?: Position, map: ForestMap = FOREST_MAP): EnemyState[] {
   // 範囲攻撃の巻き込みも含め、壁の向こうの敵へ着弾させない。
-  const enemies = state.combat.enemies.filter((enemy) => enemy.hp > 0 && isPassable(map, enemy.position) && hasLineOfSight(map, state.combat.position, enemy.position))
-  if (skillId === 'shockwave') return enemies.filter((enemy) => manhattanDistance(enemy.position, state.combat.position) <= 2 && Math.max(Math.abs(enemy.position.x - state.combat.position.x), Math.abs(enemy.position.y - state.combat.position.y)) === 1)
-  if (skillId === 'flame' && target) return enemies.filter((enemy) => Math.max(Math.abs(enemy.position.x - target.x), Math.abs(enemy.position.y - target.y)) <= 1)
-  if (skillId === 'piercingShot' && target) return enemies.filter((enemy) => (enemy.position.x === state.combat.position.x || enemy.position.y === state.combat.position.y) && manhattanDistance(enemy.position, state.combat.position) <= SKILLS.piercingShot.range)
-  return target ? enemies.filter((enemy) => same(enemy.position, target)) : []
+  const enemies = state.combat.enemies.filter((enemy) => enemy.hp > 0 && bossCells(enemy.position, Boolean(enemy.specialBoss)).some((part) => isPassable(map, part) && hasLineOfSight(map, state.combat.position, part)))
+  const parts = (enemy: EnemyState) => bossCells(enemy.position, Boolean(enemy.specialBoss))
+  if (skillId === 'shockwave') return enemies.filter((enemy) => parts(enemy).some((part) => manhattanDistance(part, state.combat.position) <= 2 && Math.max(Math.abs(part.x - state.combat.position.x), Math.abs(part.y - state.combat.position.y)) === 1))
+  if (skillId === 'flame' && target) return enemies.filter((enemy) => parts(enemy).some((part) => Math.max(Math.abs(part.x - target.x), Math.abs(part.y - target.y)) <= 1))
+  if (skillId === 'piercingShot' && target) return enemies.filter((enemy) => parts(enemy).some((part) => (part.x === state.combat.position.x || part.y === state.combat.position.y) && manhattanDistance(part, state.combat.position) <= SKILLS.piercingShot.range))
+  return target ? enemies.filter((enemy) => occupiesBoss(enemy.position, target, Boolean(enemy.specialBoss))) : []
 }
 
 // カメラの表示範囲によらず、既存の射程・遮蔽判定から生存敵を選ぶ。
@@ -178,8 +182,8 @@ export function selectAutoTarget(state: BattleState, map: ForestMap = FOREST_MAP
   const cells = skillId ? getSkillTargetCells(state, skillId, map) : getPlayerAttackCells(state.player, origin, map)
   const horizontal = (position: Position) => position.x > origin.x ? 0 : position.x < origin.x ? 1 : 2
   const vertical = (position: Position) => position.y < origin.y ? 0 : position.y === origin.y ? 1 : 2
-  return state.combat.enemies.filter((enemy) => enemy.hp > 0 && cells.some((cell) => same(cell, enemy.position))).sort((a, b) =>
-    manhattanDistance(origin, a.position) - manhattanDistance(origin, b.position)
+  return state.combat.enemies.filter((enemy) => enemy.hp > 0 && cells.some((cell) => occupiesBoss(enemy.position, cell, Boolean(enemy.specialBoss)))).sort((a, b) =>
+    distanceToBoss(origin, a.position, Boolean(a.specialBoss)) - distanceToBoss(origin, b.position, Boolean(b.specialBoss))
     || a.hp - b.hp
     || horizontal(a.position) - horizontal(b.position)
     || vertical(a.position) - vertical(b.position)

@@ -1,8 +1,9 @@
-import { attackWithWeapon, getSkillAffectedEnemies, getSkillTargetCells, selectAutoTarget, useSkill, type BattleState } from './battle'
+import { attackWithWeapon, getPlayerAttackCells, getSkillAffectedEnemies, getSkillTargetCells, selectAutoTarget, useSkill, type BattleState } from './battle'
 import { availableSkillLevel, availableSkills, type SkillId } from './player'
 import { manhattanDistance } from './combat/combat'
 import { type ForestMap, type Position } from './forestMap'
 import { OFFENSIVE_SKILL_PRIORITY, SKILLS } from './skills'
+import { bossCells } from './specialBoss'
 
 // 攻撃のみ定義順で自動選択。回復・移動・防御は手動発動専用。
 export const AUTO_SKILL_PRIORITY: readonly SkillId[] = OFFENSIVE_SKILL_PRIORITY
@@ -17,7 +18,10 @@ export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction
       const effect = id === 'poisonStrike' ? 'poison' : id === 'slowSpell' ? 'slow' : id === 'stunStrike' ? 'stun' : null
       const candidates = effect ? { ...state, combat: { ...state.combat, enemies: state.combat.enemies.filter((enemy) => (enemy.statuses?.[effect] ?? 0) === 0 && (effect !== 'stun' || (enemy.statuses?.stunRecovery ?? 0) === 0)) } } : state
       const enemy = selectAutoTarget(candidates, map, id)
-      if (enemy) return { skillId: id, target: enemy.position }
+      if (enemy) {
+        const cells = getSkillTargetCells(state, id, map)
+        return { skillId: id, target: bossCells(enemy.position, Boolean(enemy.specialBoss)).find((part) => cells.some((cell) => cell.x === part.x && cell.y === part.y)) }
+      }
     } else if (SKILLS[id].target === 'self') {
       if (getSkillAffectedEnemies(state, id, undefined, map).length) return { skillId: id }
     } else {
@@ -27,7 +31,9 @@ export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction
     }
   }
   const enemy = selectAutoTarget(state, map)
-  return enemy ? { target: enemy.position } : null
+  if (!enemy) return null
+  const cells = getPlayerAttackCells(state.player, origin, map)
+  return { target: bossCells(enemy.position, Boolean(enemy.specialBoss)).find((part) => cells.some((cell) => cell.x === part.x && cell.y === part.y))! }
 }
 
 export function performAutoAttack(state: BattleState, map: ForestMap, random: () => number = Math.random): BattleState {

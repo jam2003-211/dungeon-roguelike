@@ -49,7 +49,7 @@ test('旧試験装備は固定IDと専用フラグの両方で除去し、正規
   assert.equal(restored.player.currentHp, player.calculateStats(restored.player).maxHp)
   assert.equal(restored.player.level, old.player.level); assert.equal(restored.player.experience, old.player.experience); assert.equal(restored.player.job, old.player.job)
   assert.deepEqual(restored.stocks, old.stocks); assert.deepEqual(old, original)
-  assert.equal(restored.schemaVersion, 5); assert.deepEqual(readSaveData(restored), restored)
+  assert.equal(restored.schemaVersion, 6); assert.deepEqual(readSaveData(restored), restored)
   const { treasures: _treasures, ...legacyPlayer } = old.player
   const legacyLoaded = readSaveData({ ...old, schemaVersion: 1, player: { ...legacyPlayer, inventory: legacyPlayer.inventory.map(legacyItem) } })
   assert.equal(legacyLoaded.player.level, restored.player.level)
@@ -100,7 +100,7 @@ test('未生成のストックを保存でき、探索中の状態をスナッ�
   for (const key of ['combat', 'loot', 'cooldowns', 'activeRun', 'turn']) assert.equal(key in data, false)
 })
 test('対応外バージョンを識別して拒否する', () => {
-  for (const schemaVersion of [undefined, 0, 6, '1']) assert.throws(() => readSaveData({ ...valid, schemaVersion }), /バージョン/)
+  for (const schemaVersion of [undefined, 0, 7, '1']) assert.throws(() => readSaveData({ ...valid, schemaVersion }), /バージョン/)
 })
 test('不正なLv・経験値・HP・職業・保存日時を拒否する', () => {
   for (const [key, value] of [['level', 0], ['level', 1.5], ['experience', -1], ['experience', 999999], ['currentHp', -1], ['currentHp', 999999], ['job', 'unknown']]) {
@@ -232,5 +232,5 @@ test('初回セーブは確認なしで保存し、不在データのロード�
   repository.read = async () => undefined
   await assert.rejects(operations.load(true), /ありません/)
   const data = await operations.save(valid.player, valid.stocks, false)
-  assert.deepEqual(data.player, valid.player); assert.equal(data.schemaVersion, 5)
+  assert.deepEqual(data.player, valid.player); assert.equal(data.schemaVersion, 6)
 })
