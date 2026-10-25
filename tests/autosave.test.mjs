@@ -80,7 +80,7 @@ test('v2の探索報酬を未鑑定品へ移行し、開封と宝箱状態を保
   legacy.player.treasures = legacy.player.treasures.filter((treasure) => treasure.id !== reward.id)
   legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => legacyItem(treasure.item))
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 4)
+  assert.equal(migrated.schemaVersion, 5)
   assert.equal(migrated.player.inventory.some((item) => item.id === reward.id), false)
   assert.deepEqual(migrated.player.treasures.find((treasure) => treasure.id === reward.id), reward)
   assert.deepEqual(migrated.run.battle.loot.items.find((treasure) => treasure.id === reward.id), reward)
@@ -89,8 +89,9 @@ test('v2の探索報酬を未鑑定品へ移行し、開封と宝箱状態を保
 test('v3の未鑑定品と探索状態を再抽選せずv4へ移行する', () => {
   const f = fixture(); const chest = f.state.loot.chests[0]; f.state.combat.position = { ...chest.position }
   f.state = loot.openLootChest(f.state, 1, chest.position, f.generated, () => .2, () => 'legacy-v3-treasure')
-  const expected = snapshot(f)
-  const legacy = structuredClone(expected); legacy.schemaVersion = 3
+  const current = snapshot(f)
+  const expected = readSaveData({ ...current, schemaVersion: 4 })
+  const legacy = structuredClone(current); legacy.schemaVersion = 3
   legacy.player.inventory = legacy.player.inventory.map(legacyItem)
   legacy.player.treasures = legacy.player.treasures.map((treasure) => ({ ...treasure, item: legacyItem(treasure.item) }))
   legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => ({ ...treasure, item: legacyItem(treasure.item) }))
@@ -188,9 +189,11 @@ test('v1を町のv2へ移行し、装備と能力値を二重適用しない', (
   const f = fixture(); const { treasures: _treasures, ...oldPlayer } = f.state.player
   const legacy = { schemaVersion: 1, savedAt: new Date().toISOString(), player: { ...oldPlayer, inventory: oldPlayer.inventory.map(legacyItem) }, stocks: f.stocks }
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 4); assert.equal(migrated.run, null)
-  assert.deepEqual(migrated.player, f.state.player); assert.deepEqual(migrated.stocks, legacy.stocks)
-  assert.deepEqual(player.calculateStats(migrated.player), player.calculateStats(f.state.player))
+  assert.equal(migrated.schemaVersion, 5); assert.equal(migrated.run, null)
+  assert.equal(migrated.player.level, f.state.player.level)
+  assert.deepEqual(migrated.player.equipment, f.state.player.equipment)
+  assert.equal(migrated.player.inventory[0].basePhysical, player.weaponBaseAttack(1, 'sword'))
+  assert.deepEqual(migrated.stocks, legacy.stocks)
 })
 test('探索の不整合なHP・敵ID・死亡敵・CD・宝箱・報酬を拒否する', () => {
   for (const mutate of [

@@ -1,5 +1,6 @@
 import { FOREST_MAP, MAP_SIZE, PLAYER_START, isInsideMap, isPassable, type ForestMap, type Position } from '../forestMap'
 import type { Direction } from '../exploration'
+import { STANDARD_ENEMY_BASE_HP, standardEnemyHp } from '../player'
 
 export type EnemyKind = 'goblin' | 'boar' | 'slimeKing' | 'cyclopsBat' | 'stoneGolem' | 'ghost'
 export type AttackWarning = Readonly<{ remaining: number; cells: Position[]; direction: Direction; target: Position }>
@@ -38,6 +39,10 @@ export interface CombatState {
 
 export const PLAYER_PHYSICAL_ATTACK = 12
 
+export function normalEnemyHp(kind: EnemyKind, level: number): number {
+  return standardEnemyHp(level) + ENEMY_DEFINITIONS[kind].baseHp - STANDARD_ENEMY_BASE_HP
+}
+
 export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
   goblin: { kind: 'goblin', name: 'ゴブリン', baseHp: 20, baseAttack: 15, detectionRange: 4, preparationTurns: 1 },
   boar: { kind: 'boar', name: 'イノシシ', baseHp: 20, baseAttack: 20, detectionRange: 5, preparationTurns: 2 },
@@ -62,7 +67,7 @@ export function manhattanDistance(a: Position, b: Position): number {
 
 export function createEnemy(id: string, kind: EnemyKind, level: number, position: Position, isBoss = false): EnemyState {
   const definition = ENEMY_DEFINITIONS[kind]
-  const normalHp = definition.baseHp + 10 * (level - 1)
+  const normalHp = normalEnemyHp(kind, level)
   const normalAttack = definition.baseAttack + 4 * (level - 1)
   const maxHp = isBoss ? normalHp * 3 : normalHp
   return {

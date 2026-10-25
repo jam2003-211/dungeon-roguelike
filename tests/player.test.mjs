@@ -16,7 +16,7 @@ test('新規ゲームは正規の初期剣・軽鎧だけを配布し試験装�
   const state = productionPlayer.createPlayerState()
   assert.deepEqual(state.inventory.map((item) => item.id), ['initial-sword', 'initial-armor'])
   assert.equal(state.inventory.some((item) => item.testOnly), false)
-  assert.deepEqual(productionPlayer.calculateStats(state), { maxHp: 80, physical: 12, magic: 9 })
+  assert.deepEqual(productionPlayer.calculateStats(state), { maxHp: 80, physical: 40, magic: 9 })
   assert.deepEqual(state.equipment, { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null })
 })
 

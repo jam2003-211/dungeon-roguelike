@@ -10,7 +10,11 @@ async function transpile(path) {
 
 const mapOutput = await transpile('../src/game/forestMap.ts')
 const mapUrl = `data:text/javascript;base64,${Buffer.from(mapOutput).toString('base64')}`
-const combatOutput = (await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`)
+const levelsOutput = await transpile('../src/game/effectLevels.ts')
+const levelsUrl = `data:text/javascript;base64,${Buffer.from(levelsOutput).toString('base64')}`
+const playerOutput = (await transpile('../src/game/player.ts')).replace("'./effectLevels'", `'${levelsUrl}'`)
+const playerUrl = `data:text/javascript;base64,${Buffer.from(playerOutput).toString('base64')}`
+const combatOutput = (await transpile('../src/game/combat/combat.ts')).replace("'../forestMap'", `'${mapUrl}'`).replace("'../player'", `'${playerUrl}'`)
 const combat = await import(`data:text/javascript;base64,${Buffer.from(combatOutput).toString('base64')}`)
 
 function openMap(obstacles = []) {

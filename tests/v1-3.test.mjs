@@ -40,7 +40,7 @@ test('適正Lv装備の交換は基礎成長を数レベル分補い、初期装
   const fresh = player.createPlayerState()
   assert.deepEqual(fresh.inventory.map((item) => item.name), ['剣', '軽鎧'])
   assert.ok(fresh.inventory.every((item) => item.skills.length === 0 && item.specialEffect === null))
-  const stronger = { ...fresh.inventory[0], id: 'level-50-spear', name: '槍', subtype: 'spear', level: 50, basePhysical: 7 }
+  const stronger = { ...fresh.inventory[0], id: 'level-50-spear', name: '槍', subtype: 'spear', level: 50, basePhysical: player.weaponBaseAttack(50, 'spear') }
   const current = { ...fresh, level: 50 }
   const changed = player.equipItem({ ...current, inventory: [...current.inventory, stronger] }, stronger.id)
   assert.ok(player.calculateStats(changed).physical - player.calculateStats(current).physical >= 35)

@@ -50,6 +50,26 @@ export const JOBS = {
 // Lv1～5は従来の速度を維持し、以降は10階探索の敵数に合わせて必要量を増やす。
 export function experienceToNext(level: number): number { const later = Math.max(0, level - 5); return 100 + 25 * (level - 1) + 250 * later + 10 * later * later }
 export function baseStats(level: number): PlayerStats { const attack = 12 + 5 * (level - 1); return { maxHp: 100 + 20 * (level - 1), physical: attack, magic: attack } }
+const WEAPON_TARGET_OFFSET: Readonly<Record<WeaponType, number>> = { sword: 2, spear: 0, bow: -2, shortStaff: -2, longStaff: -5 }
+export const STANDARD_ENEMY_BASE_HP = 20
+export function standardEnemyHp(level: number): number { return STANDARD_ENEMY_BASE_HP + 10 * (level - 1) }
+
+// 実際の無職の補正と装備補正の切り捨てを使い、目標HPに届く最小の基礎値を求める。
+export function weaponBaseAttack(level: number, type: WeaponType): number {
+  const scale = 1 + .1 * (level - 1)
+  const magic = type === 'shortStaff' || type === 'longStaff'
+  const reference = Math.floor(baseStats(level)[magic ? 'magic' : 'physical'] * JOBS.unemployed[magic ? 'magic' : 'physical'])
+  const target = standardEnemyHp(Math.max(1, level + WEAPON_TARGET_OFFSET[type]))
+  const required = Math.max(0, target - reference)
+  let base = Math.max(0, Math.ceil(required / scale))
+  while (Math.floor(base * scale) < required) base += 1
+  while (base > 0 && Math.floor((base - 1) * scale) >= required) base -= 1
+  // 目標敵Lvが1に張り付く序盤は基礎攻撃の成長で必要値が下がる。
+  // その区間の最大値を保持し、装備Lvの上昇で武器の基礎値を下げない。
+  if (level > 1 && level <= 6) return Math.max(base, ...Array.from({ length: level - 1 }, (_, index) => weaponBaseAttack(index + 1, type)))
+  if (level > 6 && WEAPON_TARGET_OFFSET[type] < 0) return Math.max(base, weaponBaseAttack(6, type))
+  return base
+}
 export function itemBonuses(item: EquipmentItem): PlayerStats {
   const multiplier = item.statMultiplier ?? 1
   const scale = 1 + .1 * (item.level - 1)
@@ -66,7 +86,7 @@ export function calculateStats(player: PlayerState): PlayerStats {
 
 export function createPlayerState(): PlayerState {
   return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', treasures: [], inventory: [
-    { id: 'initial-sword', name: '剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 3, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
+    { id: 'initial-sword', name: '剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: weaponBaseAttack(1, 'sword'), baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
     { id: 'initial-armor', name: '軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
   ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null } }
 }

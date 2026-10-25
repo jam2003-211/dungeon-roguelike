@@ -1,4 +1,4 @@
-import { SUBTYPE_LABELS, type EquipmentCategory, type EquipmentItem, type SkillId, type SpecialEffectId, type UnidentifiedTreasure } from './player'
+import { SUBTYPE_LABELS, weaponBaseAttack, type EquipmentCategory, type EquipmentItem, type SkillId, type SpecialEffectId, type UnidentifiedTreasure } from './player'
 import { EFFECT_PREFIXES, SKILL_PREFIXES, rollEffectLevel } from './effectLevels'
 import type { GeneratedDungeon } from './dungeon'
 import type { Position } from './forestMap'
@@ -45,7 +45,8 @@ export function generateEquipment(dungeon: Pick<GeneratedDungeon, 'level' | 'fea
   if (category === 'weapon' || category === 'armor') {
     const subtype = category === 'weapon' ? pick(['sword', 'spear', 'bow', 'shortStaff', 'longStaff'] as const, random) : pick(['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'] as const, random)
     const [hp, physical, magic] = EQUIPMENT_BASES[subtype]
-    Object.assign(item, { subtype, name: SUBTYPE_LABELS[subtype], baseHp: hp, basePhysical: physical, baseMagic: magic })
+    const weaponPower = category === 'weapon' ? weaponBaseAttack(level, subtype as 'sword' | 'spear' | 'bow' | 'shortStaff' | 'longStaff') : 0
+    Object.assign(item, { subtype, name: SUBTYPE_LABELS[subtype], baseHp: hp, basePhysical: category === 'weapon' && physical > 0 ? weaponPower : physical, baseMagic: category === 'weapon' && magic > 0 ? weaponPower : magic })
     if (category === 'weapon') { item.specialEffect = pick(effects, random); item.specialEffectLevel = rollEffectLevel(random) }
     else item.skills = uniquePicks(skills, subtype === 'heavyArmor' || subtype === 'heavyRobe' ? 1 : 3, random)
   } else if (random() < .5) {

@@ -109,7 +109,7 @@ test('気絶中は警告を隠し、回復後は赤の次行動で固定範囲�
 })
 test('無職だけ0.8倍、町への復帰は装備込み最大HPまで回復する', () => {
   assert.deepEqual(player.JOBS.unemployed.hp, .8)
-  const p = player.createPlayerState(); assert.deepEqual(player.calculateStats(p), { maxHp: 80, physical: 12, magic: 9 })
+  const p = player.createPlayerState(); assert.deepEqual(player.calculateStats(p), { maxHp: 80, physical: 40, magic: 9 })
   assert.equal(player.recoverInTown({ ...p, currentHp: 0 }).currentHp, 80)
   assert.equal(player.recoverInTown({ ...p, currentHp: 1 }).currentHp, 80)
   assert.equal(player.JOBS.warrior.hp, 1.3)
