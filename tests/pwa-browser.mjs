@@ -9,6 +9,8 @@ import { loadGameModule as load, pwaFixture } from './pwa-fixture.mjs'
 
 const temporary = mkdtempSync(join(tmpdir(), 'roguelike-pwa-'))
 const fixture = await pwaFixture()
+fixture.player.disabledSkills = ['dash']
+fixture.player.disabledEffects = ['poison']
 async function specialBossFixture() {
   const dungeon = await load('game/dungeon'), player = await load('game/player'), runs = await load('game/dungeonRun')
   const loot = await load('game/loot'), saves = await load('persistence/saveData'), savedRun = await load('persistence/savedRun')
@@ -122,6 +124,8 @@ async function checkBuild(base, outDir, profileDirectory) {
     await page.reload(); assert.equal(await page.evaluate('navigator.onLine'),false)
     await page.click('探索を再開'); await page.waitFor("document.querySelector('.dungeon-map')",'オフラインで再開できません')
     assert.deepEqual(await read(),onlineSave,'再開だけで保存状態が変わりました')
+    assert.deepEqual((await read()).player.disabledSkills, ['dash'])
+    assert.deepEqual((await read()).player.disabledEffects, ['poison'])
     // 初回に表示していなかった全画像もネットワークなしでデコードする。
     assert.equal(await page.evaluate(`Promise.all(${JSON.stringify(images.map((path)=>appUrl+path))}.map(async(url)=>{const image=new Image();image.src=url;try{await image.decode();return image.naturalWidth>0}catch{return false}})).then((loaded)=>loaded.every(Boolean))`),true,'オフラインで画像が欠落しました')
     const chest=(await read()).run.battle.loot.chests[0]; assert.ok(chest)
@@ -134,7 +138,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     }
     const clickCell=async(position)=>page.evaluate(`(()=>{const canvas=document.querySelector('.dungeon-map'),origin=JSON.parse(canvas.dataset.cameraOrigin),bounds=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:bounds.left+(${position.x}-origin.x+.5)*bounds.width/11,clientY:bounds.top+(${position.y}-origin.y+.5)*bounds.height/11}))})()`)
     await page.click('拾う'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
-    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,6)
+    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,7)
     await page.reload();await page.click('探索を再開');await page.waitFor("document.querySelector('.dungeon-map')",'オフライン再起動に失敗')
     assert.deepEqual(await read(),offlineSave);await clickCell(chest.position);assert.deepEqual(await read(),offlineSave,'二重報酬が発生しました')
     for(const width of [360,390,430]){
@@ -165,7 +169,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     const beforeUpdate=await read();await page.click('更新する')
     await page.waitFor("window.__updateMarker!==true && document.querySelector('.title-start') && !document.querySelector('.title-start').disabled",'更新が完了しません')
     assert.deepEqual(await read(),beforeUpdate,'SW更新で保存データが変化しました')
-    assert.equal((await read()).schemaVersion,6)
+    assert.equal((await read()).schemaVersion,7)
     if (base === '/') {
       // 実際のSW制御下・ネットワーク遮断下で13×13ボス戦とIndexedDB再開を確認。
       await page.evaluate(`(${database})(${JSON.stringify(bossFixture)})`)

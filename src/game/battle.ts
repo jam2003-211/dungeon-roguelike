@@ -1,7 +1,7 @@
 import { FOREST_MAP, isPassable, type ForestMap, type Position } from './forestMap'
 import { hasLineOfSight, manhattanDistance, processEnemyTurn, type CombatState, type EnemyState } from './combat/combat'
 import { cooldownTrigger, SKILLS, type CooldownTrigger } from './skills'
-import { availableSkillLevel, availableSkillPower, availableSkills, calculateStats, enemyExperience, equippedWeapon, gainExperience, type PlayerState, type SkillId, type SpecialEffectId, type WeaponType } from './player'
+import { availableSkillLevel, availableSkillPower, availableSkills, calculateStats, enemyExperience, equippedWeapon, gainExperience, skillEnabled, specialEffectEnabled, type PlayerState, type SkillId, type SpecialEffectId, type WeaponType } from './player'
 import { BURN_TURNS, CRITICAL_MULTIPLIER, DASH_STEPS, GUARD_REDUCTION, KNOCKBACK_STEPS, LEVEL_MULTIPLIERS, LIFESTEAL_RATE, POISON_TURNS, SLOW_TURNS, STUN_BONUS, type EffectLevel } from './effectLevels'
 import type { Direction } from './exploration'
 import type { LootState } from './loot'
@@ -123,7 +123,7 @@ export function attackWithWeapon(state: BattleState, target: Position, map: Fore
   if (!state.combat.enemies.some((enemy) => enemy.hp > 0 && (magic ? cells.some((cell) => occupiesBoss(enemy.position, cell, Boolean(enemy.specialBoss))) : occupiesBoss(enemy.position, target, Boolean(enemy.specialBoss))))) return state
   const damage = Math.max(1, Math.floor(magic ? stats.magic : stats.physical))
   const weapon = equippedWeapon(state.player)
-  const effect = weapon?.specialEffect ?? null
+  const effect = weapon?.specialEffect && specialEffectEnabled(state.player, weapon.specialEffect) ? weapon.specialEffect : null
   const proc = effect !== null && random() < (weapon?.effectRate ?? .1)
   const prepared = beginAction(state, 'normalAttack'); const ids = new Set(prepared.combat.enemies.filter((enemy) => magic ? cells.some((cell) => occupiesBoss(enemy.position, cell, Boolean(enemy.specialBoss))) : occupiesBoss(enemy.position, target, Boolean(enemy.specialBoss))).map((enemy) => enemy.id))
   const damaged = damageEnemies(prepared, ids, damage, effect, proc, map, weapon?.specialEffectLevel ?? 1)
@@ -133,7 +133,7 @@ export function attackWithWeapon(state: BattleState, target: Position, map: Fore
 export function getSkillTargetCells(state: BattleState, skillId: SkillId, map: ForestMap = FOREST_MAP): Position[] { const skill = SKILLS[skillId]; const range = skillId === 'dash' ? DASH_STEPS[availableSkillLevel(state.player, 'dash') - 1] : skill.range; const cells: Position[] = []; for (let y = 0; y < 20; y += 1) for (let x = 0; x < 20; x += 1) { const cell = { x, y }; const distance = manhattanDistance(state.combat.position, cell); if (!isPassable(map, cell) || distance < 1 || distance > range) continue; if (skill.target === 'line' || skill.target === 'dash') { if (x !== state.combat.position.x && y !== state.combat.position.y) continue } if (['single', 'line', 'area'].includes(skill.target) && !hasLineOfSight(map, state.combat.position, cell)) continue; cells.push(cell) } return cells }
 
 export function useSkill(state: BattleState, skillId: SkillId, target?: Position, map: ForestMap = FOREST_MAP): BattleState {
-  if (state.combat.finished || !availableSkills(state.player).includes(skillId) || (state.cooldowns[skillId] ?? 0) > 0) return state; const skill = SKILLS[skillId]
+  if (state.combat.finished || !availableSkills(state.player).includes(skillId) || !skillEnabled(state.player, skillId) || (state.cooldowns[skillId] ?? 0) > 0) return state; const skill = SKILLS[skillId]
   if (!['self'].includes(skill.target) && (!target || !getSkillTargetCells(state, skillId, map).some((cell) => same(cell, target)))) return state
   if ((skillId === 'smallHeal' || skillId === 'largeHeal') && state.player.currentHp >= calculateStats(state.player).maxHp) return state
   if (skillId === 'dash' && target) {
@@ -177,7 +177,7 @@ export function getSkillAffectedEnemies(state: BattleState, skillId: SkillId, ta
 
 // カメラの表示範囲によらず、既存の射程・遮蔽判定から生存敵を選ぶ。
 export function selectAutoTarget(state: BattleState, map: ForestMap = FOREST_MAP, skillId?: SkillId): EnemyState | null {
-  if (state.combat.finished || (skillId && (SKILLS[skillId].target !== 'single' || !availableSkills(state.player).includes(skillId) || (state.cooldowns[skillId] ?? 0) > 0))) return null
+  if (state.combat.finished || (skillId && (SKILLS[skillId].target !== 'single' || !availableSkills(state.player).includes(skillId) || !skillEnabled(state.player, skillId) || (state.cooldowns[skillId] ?? 0) > 0))) return null
   const origin = state.combat.position
   const cells = skillId ? getSkillTargetCells(state, skillId, map) : getPlayerAttackCells(state.player, origin, map)
   const horizontal = (position: Position) => position.x > origin.x ? 0 : position.x < origin.x ? 1 : 2

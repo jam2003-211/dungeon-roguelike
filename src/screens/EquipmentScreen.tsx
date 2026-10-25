@@ -5,7 +5,7 @@ import { PixelAsset } from '../components/PixelAsset'
 import { SkillIcon } from '../components/SkillIcon'
 import { SpecialEffectIcon } from '../components/SpecialEffectIcon'
 import { AppShell, Panel, ScreenHeader } from '../components/Ui'
-import { SUBTYPE_LABELS, canEquip, discardItem, equipItem, isEquipped, itemBonuses, toggleFavorite, unequipSlot, type EquipmentCategory, type EquipmentItem, type EquipmentSlots, type PlayerState, type SkillId, type SpecialEffectId } from '../game/player'
+import { SUBTYPE_LABELS, availableSkillLevel, availableSkills, availableSpecialEffects, canEquip, discardItem, equipItem, isEquipped, itemBonuses, skillEnabled, specialEffectEnabled, toggleFavorite, toggleSkillEnabled, toggleSpecialEffectEnabled, unequipSlot, type EquipmentCategory, type EquipmentItem, type EquipmentSlots, type PlayerState, type SkillId, type SpecialEffectId } from '../game/player'
 import { filterInventory, type InventoryFilter, type InventorySort } from '../game/inventoryView'
 import { EFFECT_LABELS, describeSpecialEffect } from '../game/effectLevels'
 import { SKILLS, describeSkill } from '../game/skills'
@@ -47,11 +47,20 @@ export function EquipmentScreen({ player, readOnly, onChange, onBack }: { player
   const [selected, setSelected] = useState<string | null>(null)
   const items = filterInventory(player, filter)
   const selectedItem = player.inventory.find((item) => item.id === selected) ?? null
+  const activeSkills = availableSkills(player)
+  const activeEffects = availableSpecialEffects(player)
   const subtypeOptions = Object.entries(SUBTYPE_LABELS).filter(([id]) => filter.category === 'weapon' ? ['sword', 'spear', 'bow', 'shortStaff', 'longStaff'].includes(id) : filter.category === 'armor' ? ['heavyArmor', 'lightArmor', 'heavyRobe', 'lightRobe'].includes(id) : id === 'commonAccessory')
   return <AppShell>
     <ScreenHeader title="装備・所持品" subtitle={readOnly ? '探索中：閲覧のみ' : '町：装備を変更可能'} onBack={onBack} />
     <div className="section-heading"><h2>現在の装備</h2></div>
     <div className="equipment-grid">{slots.map((slot) => { const equipped = player.inventory.find((item) => item.id === player.equipment[slot.id]); return <button type="button" className="panel equipment-slot" key={slot.id} disabled={readOnly || !equipped} onClick={() => onChange(unequipSlot(player, slot.id))}>{equipped && <EquipmentImage item={equipped} fallbackIcon={slot.icon} />}<small>{slot.label}</small><strong>{equipped?.name ?? '未選択'}</strong>{equipped && <b className="inventory-item__level">Lv.{equipped.level}</b>}{equipped && <span className="equipment-slot__effects">{equipped.skills.map((id) => <span className="effect-badge" key={id} title={`スキル：${SKILLS[id].name} Lv.${equipped.skillLevels[id] ?? 1}`}><SkillIcon skillId={id} /><b>{equipped.skillLevels[id] ?? 1}</b></span>)}{equipped.specialEffect && <span className="effect-badge" title={`特殊効果：${EFFECT_LABELS[equipped.specialEffect]} Lv.${equipped.specialEffectLevel ?? 1}`}><SpecialEffectIcon effect={equipped.specialEffect} /><b>{equipped.specialEffectLevel ?? 1}</b></span>}</span>}{!readOnly && equipped && <em>タップで解除</em>}</button> })}</div>
+    <section className="equipped-abilities" aria-label="発動スキル・特殊効果">
+      <h2>発動スキル・特殊効果</h2>
+      <h3>スキル</h3>
+      <div className="equipped-abilities__list">{activeSkills.map((id) => { const enabled = skillEnabled(player, id); return <div className={`equipped-ability${enabled ? '' : ' is-off'}`} key={id}><SkillIcon skillId={id} /><span className="equipped-ability__name">{SKILLS[id].name} <b>Lv.{availableSkillLevel(player, id)}</b><small>{['smallHeal', 'largeHeal', 'dash', 'guard'].includes(id) ? '手動スキル' : '自動スキル'}</small></span><button type="button" className="equipped-ability__toggle" aria-label={`${SKILLS[id].name}を${enabled ? 'OFF' : 'ON'}にする`} aria-pressed={enabled} disabled={readOnly} onClick={() => onChange(toggleSkillEnabled(player, id))}>{enabled ? 'ON' : 'OFF'}</button></div> })}{activeSkills.length === 0 && <p>なし</p>}</div>
+      <h3>特殊効果</h3>
+      <div className="equipped-abilities__list">{activeEffects.map(({ id, level }) => { const enabled = specialEffectEnabled(player, id); return <div className={`equipped-ability${enabled ? '' : ' is-off'}`} key={id}><SpecialEffectIcon effect={id} /><span className="equipped-ability__name">{EFFECT_LABELS[id]} <b>Lv.{level}</b><small>特殊効果</small></span><button type="button" className="equipped-ability__toggle" aria-label={`${EFFECT_LABELS[id]}を${enabled ? 'OFF' : 'ON'}にする`} aria-pressed={enabled} disabled={readOnly} onClick={() => onChange(toggleSpecialEffectEnabled(player, id))}>{enabled ? 'ON' : 'OFF'}</button></div> })}{activeEffects.length === 0 && <p>なし</p>}</div>
+    </section>
     <div className="section-heading inventory-heading"><h2>所持品</h2><span className="item-count">{player.inventory.length} items</span></div>
     <input className="inventory-search" value={filter.query} onChange={(event) => updateFilter({ query: event.target.value })} placeholder="名前で検索" aria-label="装備名検索" />
     <div className="category-tabs" role="tablist">{tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={filter.category === tab.id} className={filter.category === tab.id ? 'is-active' : ''} onClick={() => updateFilter({ category: tab.id, subtype: '' })}>{tab.label}</button>)}</div>

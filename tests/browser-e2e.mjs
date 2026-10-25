@@ -452,6 +452,15 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
       await clickButton('試験護符・治癒'); await clickButton('装備する')
       assert.equal(await evaluate("[...document.querySelectorAll('.equipment-slot strong')].filter((node) => node.textContent.includes('試験護符')).length"), 2, 'アクセサリー2枠へ装備できません。')
       assert.equal(await evaluate("[...document.querySelectorAll('.equipment-slot img')].filter((image) => image.getAttribute('src') === '/assets/accessories/necklace.png').length"), 2, 'アクセサリー装備スロットの画像が統一されません。')
+      assert.equal(await evaluate("document.querySelectorAll('.equipped-ability').length > 0"), true, '装備中の効果一覧がありません。')
+      assert.equal(await evaluate("[...document.querySelectorAll('.equipped-ability')].filter((row)=>row.textContent.includes('強撃')).length"), 1, '同じスキルが重複しています。')
+      await clickButton('強撃をOFFにする')
+      assert.equal(await evaluate("[...document.querySelectorAll('.equipped-ability')].find((row)=>row.textContent.includes('強撃'))?.classList.contains('is-off')"), true)
+      await waitFor("document.querySelector('.save-status')?.dataset.saving === 'false'", '切替状態を保存できません。')
+      await waitFor(`(${databaseAccess})().then((data)=>data.player.disabledSkills.includes('strongStrike'))`, '切替状態がIndexedDBに保存されません。')
+      await clickButton('強撃をONにする')
+      assert.equal(await evaluate("[...document.querySelectorAll('.equipped-ability')].find((row)=>row.textContent.includes('強撃'))?.classList.contains('is-off')"), false)
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, '装備画面が横にはみ出しています。')
     }
     if (heading === '職業変更') {
       assert.deepEqual(await evaluate("[...document.querySelectorAll('.job-icon img')].map((image) => image.getAttribute('src'))"), ['/assets/jobs/none.png', '/assets/jobs/warrior.png', '/assets/jobs/mage.png', '/assets/jobs/hunter.png', '/assets/jobs/paladin.png', '/assets/jobs/spellblade.png'], '職業6種類の画像対応が不正です。')
@@ -500,6 +509,7 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
     await clickButton('前の画面へ戻る')
     await clickButton('装備・所持品')
     await clickExactButton('防具')
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll('.equipped-ability')].every((row)=>row.getBoundingClientRect().right <= innerWidth)"), true, `${width}pxの効果一覧が横にはみ出しています。`)
     assert.equal(await evaluate("[...document.querySelectorAll('.inventory-item')].every((card)=>card.querySelector('.inventory-item__level')?.textContent.startsWith('Lv.'))"), true, '装備Lvが一覧で目立ちません。')
     assert.equal(await evaluate("document.querySelectorAll('.inventory-item__effects .effect-badge img').length > 0"), true, '一覧のスキルアイコンがありません。')
     await evaluate("document.querySelector('.inventory-filters summary').click()")

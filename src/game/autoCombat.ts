@@ -1,5 +1,5 @@
 import { attackWithWeapon, getPlayerAttackCells, getSkillAffectedEnemies, getSkillTargetCells, selectAutoTarget, useSkill, type BattleState } from './battle'
-import { availableSkillLevel, availableSkills, type SkillId } from './player'
+import { availableSkillLevel, availableSkills, skillEnabled, type SkillId } from './player'
 import { manhattanDistance } from './combat/combat'
 import { type ForestMap, type Position } from './forestMap'
 import { OFFENSIVE_SKILL_PRIORITY, SKILLS } from './skills'
@@ -13,7 +13,7 @@ export function chooseAutoAction(state: BattleState, map: ForestMap): AutoAction
   if (state.combat.finished) return null
   const origin = state.combat.position
   for (const id of AUTO_SKILL_PRIORITY) {
-    if (!availableSkills(state.player).includes(id) || (state.cooldowns[id] ?? 0) > 0) continue
+    if (!availableSkills(state.player).includes(id) || !skillEnabled(state.player, id) || (state.cooldowns[id] ?? 0) > 0) continue
     if (SKILLS[id].target === 'single') {
       const effect = id === 'poisonStrike' ? 'poison' : id === 'slowSpell' ? 'slow' : id === 'stunStrike' ? 'stun' : null
       const candidates = effect ? { ...state, combat: { ...state.combat, enemies: state.combat.enemies.filter((enemy) => (enemy.statuses?.[effect] ?? 0) === 0 && (effect !== 'stun' || (enemy.statuses?.stunRecovery ?? 0) === 0)) } } : state

@@ -31,7 +31,7 @@ export interface EquipmentItem {
 export interface UnidentifiedTreasure { id: string; level: number; item: EquipmentItem }
 
 export interface EquipmentSlots { weapon: string | null; armor: string | null; accessory1: string | null; accessory2: string | null }
-export interface PlayerState { level: number; experience: number; currentHp: number; job: JobId; inventory: EquipmentItem[]; treasures: UnidentifiedTreasure[]; equipment: EquipmentSlots; specialBossClears: ('forest' | 'ruins' | 'castle')[] }
+export interface PlayerState { level: number; experience: number; currentHp: number; job: JobId; inventory: EquipmentItem[]; treasures: UnidentifiedTreasure[]; equipment: EquipmentSlots; specialBossClears: ('forest' | 'ruins' | 'castle')[]; disabledSkills: SkillId[]; disabledEffects: SpecialEffectId[] }
 export interface PlayerStats { maxHp: number; physical: number; magic: number }
 
 export const RARITY_MULTIPLIERS: Readonly<Record<Rarity, number>> = { common: 1, rare: 1.25, epic: 1.5, legendary: 2 }
@@ -88,7 +88,7 @@ export function createPlayerState(): PlayerState {
   return { level: 1, experience: 0, currentHp: 80, job: 'unemployed', treasures: [], inventory: [
     { id: 'initial-sword', name: '剣', category: 'weapon', subtype: 'sword', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: weaponBaseAttack(1, 'sword'), baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
     { id: 'initial-armor', name: '軽鎧', category: 'armor', subtype: 'lightArmor', level: 1, statMultiplier: 1, effectRate: .1, legacySkillPower: 1, baseHp: 0, basePhysical: 0, baseMagic: 0, skills: [], skillLevels: {}, specialEffect: null, specialEffectLevel: null, favorite: false, testOnly: false },
-  ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null }, specialBossClears: [] }
+  ], equipment: { weapon: 'initial-sword', armor: 'initial-armor', accessory1: null, accessory2: null }, specialBossClears: [], disabledSkills: [], disabledEffects: [] }
 }
 export function canEquip(jobId: JobId, item: EquipmentItem): boolean { if (item.category === 'accessory') return true; const job = JOBS[jobId]; return item.category === 'weapon' ? (job.weapons as readonly string[]).includes(item.subtype) : (job.armors as readonly string[]).includes(item.subtype) }
 export function isEquipped(player: PlayerState, id: string): boolean { return Object.values(player.equipment).includes(id) }
@@ -121,6 +121,15 @@ export function toggleFavorite(player: PlayerState, id: string): PlayerState { r
 export function discardItem(player: PlayerState, id: string): PlayerState { const target = player.inventory.find((item) => item.id === id); if (!target || target.favorite || isEquipped(player, id)) return player; return { ...player, inventory: player.inventory.filter((item) => item.id !== id) } }
 export function sortAndFilterInventory(player: PlayerState, category: EquipmentCategory, query: string): EquipmentItem[] { const normalized = query.trim().toLocaleLowerCase('ja'); return player.inventory.filter((item) => item.category === category && item.name.toLocaleLowerCase('ja').includes(normalized)).sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.level - a.level || a.id.localeCompare(b.id)) }
 export function availableSkills(player: PlayerState): SkillId[] { return [...new Set(equippedItems(player).flatMap((item) => item.skills))] }
+export function skillEnabled(player: PlayerState, id: SkillId): boolean { return !player.disabledSkills.includes(id) }
+export function specialEffectEnabled(player: PlayerState, id: SpecialEffectId): boolean { return !player.disabledEffects.includes(id) }
+export function toggleSkillEnabled(player: PlayerState, id: SkillId): PlayerState { return { ...player, disabledSkills: skillEnabled(player, id) ? [...player.disabledSkills, id] : player.disabledSkills.filter((current) => current !== id) } }
+export function toggleSpecialEffectEnabled(player: PlayerState, id: SpecialEffectId): PlayerState { return { ...player, disabledEffects: specialEffectEnabled(player, id) ? [...player.disabledEffects, id] : player.disabledEffects.filter((current) => current !== id) } }
+export function availableSpecialEffects(player: PlayerState): Array<{ id: SpecialEffectId; level: EffectLevel }> {
+  const levels = new Map<SpecialEffectId, EffectLevel>()
+  for (const item of equippedItems(player)) if (item.specialEffect) levels.set(item.specialEffect, Math.max(levels.get(item.specialEffect) ?? 1, item.specialEffectLevel ?? 1) as EffectLevel)
+  return [...levels].map(([id, level]) => ({ id, level }))
+}
 export function availableSkillLevel(player: PlayerState, skillId: SkillId): EffectLevel { return Math.max(1, ...equippedItems(player).filter((item) => item.skills.includes(skillId)).map((item) => item.skillLevels?.[skillId] ?? 1)) as EffectLevel }
 export function availableSkillPower(player: PlayerState, skillId: SkillId): number { const level = availableSkillLevel(player, skillId); return levelMultiplier(level) * Math.max(1, ...equippedItems(player).filter((item) => item.skills.includes(skillId) && (item.skillLevels?.[skillId] ?? 1) === level).map((item) => item.legacySkillPower ?? 1)) }
 export function equippedWeapon(player: PlayerState): EquipmentItem | null { return player.inventory.find((item) => item.id === player.equipment.weapon) ?? null }

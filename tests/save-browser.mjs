@@ -57,7 +57,7 @@ export async function runSaveBrowserChecks({ evaluate, command, clickButton, cli
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   await clickExactButton('セーブ'); await clickExactButton('上書きする'); await notification('セーブしました')
   const saved = await readDatabase()
-  assert.equal(saved.schemaVersion, 6); assert.equal(saved.player.level, 30); assert.equal(saved.player.job, 'warrior')
+  assert.equal(saved.schemaVersion, 7); assert.equal(saved.player.level, 30); assert.equal(saved.player.job, 'warrior')
   assert.equal(saved.stocks.length, 3); assert.ok(saved.stocks.every((stock) => stock.dungeon && Number.isInteger(stock.dungeon.visualSeed)))
   assert.ok(saved.player.inventory.some((item) => item.favorite))
   assert.ok(saved.player.inventory.some((item) => item.specialEffect))
