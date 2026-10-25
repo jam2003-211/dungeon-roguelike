@@ -79,46 +79,53 @@ test('2×2の全マスが1体への攻撃対象で、範囲攻撃は多重命中
   assert.equal(battle.moveBattlePlayer(edge, 'left', open13), edge)
 })
 
-test('特殊ボス全パターンは固定予告範囲を実攻撃に使用し、半分以下で範囲・頻度が変わる', () => {
-  for (const [theme, count] of [['forest', 3], ['ruins', 3], ['castle', 4]]) {
-    for (let index = 0; index < count; index++) {
-      const enemy = { ...combat.createEnemy('boss', 'goblin', 100, { x: 5, y: 2 }, true, theme), attackIndex: index, attack: 7, discovered: true }
+test('特殊ボスの各技は固定予告範囲を実攻撃に使用し、個別CDを開始する', () => {
+  for (const theme of ['forest', 'ruins', 'castle']) {
+    for (const pattern of plans.SPECIAL_BOSS_PATTERNS[theme]) {
+      const enemy = { ...combat.createEnemy('boss', 'goblin', 100, { x: 5, y: 2 }, true, theme), attack: 7, discovered: true,
+        abilityCooldowns: Object.fromEntries(plans.SPECIAL_BOSS_PATTERNS[theme].map((id) => [id, id === pattern ? 0 : 2])) }
       const target = { x: 6, y: 7 }
       const warning = combat.createAttackWarning(enemy, target, open13)
-      assert.ok(warning && warning.cells.length && warning.pattern)
-      const warned = { ...enemy, warning: { ...warning, remaining: 1 } }
-      const state = { position: target, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [warned], finished: false }
-      const result = combat.processEnemyTurn(state, open13)
+      assert.equal(warning.pattern, pattern)
+      assert.equal(warning.scheduled, true)
+      const result = combat.processEnemyTurn({ position: target, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [{ ...enemy, warning }], finished: false }, open13)
       assert.equal(result.playerHp, warning.cells.some((cell) => cell.x === target.x && cell.y === target.y) ? 93 : 100)
-      assert.equal(result.bossEvents?.[0]?.pattern, warning.pattern)
+      assert.equal(result.bossEvents?.[0]?.pattern, pattern)
       if (warning.followUpCells) {
         assert.deepEqual(result.enemies[0].warning.cells, warning.followUpCells)
-        assert.equal(result.enemies[0].attackIndex, index)
-        assert.equal(combat.getEnemyWarningLevel(result.enemies[0]), 'red')
-      } else assert.equal(result.enemies[0].attackIndex, index + 1)
+      } else {
+        assert.equal(result.enemies[0].abilityCooldowns[pattern], plans.SPECIAL_BOSS_INTERVALS[pattern] - 1)
+      }
       assert.ok(warning.cells.length < 169)
     }
     const fresh = combat.createEnemy('boss', 'goblin', 100, { x: 5, y: 2 }, true, theme)
     const enraged = { ...fresh, hp: Math.floor(fresh.maxHp / 2) }
     const before = combat.createAttackWarning(fresh, { x: 6, y: 7 }, open13)
     const after = combat.createAttackWarning(enraged, { x: 6, y: 7 }, open13)
-    if (theme === 'ruins') { assert.equal(before.remaining, 2); assert.equal(after.remaining, 1) }
-    else assert.ok(after.cells.length >= before.cells.length)
+    assert.equal(before.remaining, 1)
+    assert.equal(after.remaining, 1)
+    assert.ok(after.cells.length >= before.cells.length)
   }
 })
 
-test('通常ボスは1×1のまま3種類の固定予告を順番に使用する', () => {
+test('通常ボスは1×1で元モンスターと同じ範囲・準備時間・移動AIを使う', () => {
   const map = Array.from({ length: 20 }, () => Array(20).fill('grass'))
   const target = { x: 10, y: 11 }
-  for (const [attackIndex, pattern] of ['strike', 'ground', 'normalCross'].entries()) {
-    const boss = { ...combat.createEnemy('boss', 'goblin', 30, { x: 10, y: 10 }, true), attackIndex }
-    const warning = combat.createAttackWarning(boss, target, map)
-    assert.equal(warning.pattern, pattern)
-    assert.ok(warning.cells.some((cell) => cell.x === target.x && cell.y === target.y))
-    const result = combat.processEnemyTurn({ position: target, turn: 1, playerHp: 1000, playerMaxHp: 1000, enemies: [{ ...boss, warning }], finished: false }, map)
-    assert.equal(result.playerHp, 1000 - boss.attack)
-    assert.equal(result.enemies[0].warning, null)
-    assert.equal(result.enemies[0].attackIndex, attackIndex + 1)
+  for (const kind of Object.keys(combat.ENEMY_DEFINITIONS)) {
+    const normal = { ...combat.createEnemy('normal', kind, 30, { x: 10, y: 10 }), discovered: true }
+    const boss = { ...combat.createEnemy('boss', kind, 30, { x: 10, y: 10 }, true), discovered: true }
+    assert.deepEqual(combat.createAttackWarning(boss, target, map)?.cells, combat.createAttackWarning(normal, target, map)?.cells)
+    assert.equal(combat.createAttackWarning(boss, target, map)?.remaining, combat.ENEMY_DEFINITIONS[kind].preparationTurns)
+    assert.equal(combat.createAttackWarning(boss, target, map)?.pattern, undefined)
+    let normalState = { position: target, turn: 0, playerHp: 100000, playerMaxHp: 100000, enemies: [normal], finished: false }
+    let bossState = { ...normalState, enemies: [boss] }
+    for (let turn = 0; turn < 12; turn++) {
+      normalState = combat.processEnemyTurn(normalState, map)
+      bossState = combat.processEnemyTurn(bossState, map)
+      assert.deepEqual(bossState.enemies[0].position, normalState.enemies[0].position)
+      assert.deepEqual(bossState.enemies[0].warning, normalState.enemies[0].warning)
+    }
+    assert.ok(boss.attack > normal.attack)
   }
 })
 

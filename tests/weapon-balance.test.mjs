@@ -138,7 +138,7 @@ test('旧v4の所持・装備・未鑑定・探索報酬を一回だけ移行す
   const unchanged = structuredClone(old)
   const restored = saves.readSaveData(old)
   assert.deepEqual(old, unchanged)
-  assert.equal(restored.schemaVersion, 7)
+  assert.equal(restored.schemaVersion, 8)
   assert.equal(restored.player.inventory.find((item) => item.id === 'old-weapon').basePhysical, player.weaponBaseAttack(30, 'sword'))
   assert.equal(restored.player.inventory.find((item) => item.id === 'old-weapon').statMultiplier, 1.5)
   assert.equal(restored.player.inventory.find((item) => item.id === 'old-weapon').favorite, true)

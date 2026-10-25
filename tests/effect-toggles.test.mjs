@@ -88,7 +88,7 @@ test('v7の設定は保存・再開で維持され、v6は全ONで読み込む',
   const character = player.toggleSpecialEffectEnabled(player.toggleSkillEnabled(equippedPlayer(), 'strongStrike'), 'poison')
   const stocks = dungeon.createDungeonStocks()
   const saved = save.createSaveData(character, stocks)
-  assert.equal(saved.schemaVersion, 7)
+  assert.equal(saved.schemaVersion, 8)
   assert.deepEqual(save.readSaveData(saved).player.disabledSkills, ['strongStrike'])
   assert.deepEqual(save.readSaveData(saved).player.disabledEffects, ['poison'])
   const old = structuredClone(saved)

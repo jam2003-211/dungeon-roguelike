@@ -107,7 +107,7 @@ test('探索途中の保存・旧形式のロードはCD残量と武器移行を
   assert.deepEqual(savedRun.restoreBattle(restored.player, restored.run).cooldowns, current.run.battle.cooldowns)
   const legacy = structuredClone(current); legacy.schemaVersion = 4; legacy.player.inventory[0].basePhysical = 3
   const migrated = saves.readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 7)
+  assert.equal(migrated.schemaVersion, 8)
   assert.deepEqual(migrated.run.battle.cooldowns, current.run.battle.cooldowns)
   assert.equal(migrated.player.inventory[0].basePhysical, player.weaponBaseAttack(1, 'sword'))
   assert.deepEqual(saves.readSaveData(migrated), migrated)

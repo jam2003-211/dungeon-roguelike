@@ -80,7 +80,7 @@ test('v2の探索報酬を未鑑定品へ移行し、開封と宝箱状態を保
   legacy.player.treasures = legacy.player.treasures.filter((treasure) => treasure.id !== reward.id)
   legacy.run.battle.loot.items = legacy.run.battle.loot.items.map((treasure) => legacyItem(treasure.item))
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 7)
+  assert.equal(migrated.schemaVersion, 8)
   assert.equal(migrated.player.inventory.some((item) => item.id === reward.id), false)
   assert.deepEqual(migrated.player.treasures.find((treasure) => treasure.id === reward.id), reward)
   assert.deepEqual(migrated.run.battle.loot.items.find((treasure) => treasure.id === reward.id), reward)
@@ -189,7 +189,7 @@ test('v1を町のv2へ移行し、装備と能力値を二重適用しない', (
   const f = fixture(); const { treasures: _treasures, ...oldPlayer } = f.state.player
   const legacy = { schemaVersion: 1, savedAt: new Date().toISOString(), player: { ...oldPlayer, inventory: oldPlayer.inventory.map(legacyItem) }, stocks: f.stocks }
   const migrated = readSaveData(legacy)
-  assert.equal(migrated.schemaVersion, 7); assert.equal(migrated.run, null)
+  assert.equal(migrated.schemaVersion, 8); assert.equal(migrated.run, null)
   assert.equal(migrated.player.level, f.state.player.level)
   assert.deepEqual(migrated.player.equipment, f.state.player.equipment)
   assert.equal(migrated.player.inventory[0].basePhysical, player.weaponBaseAttack(1, 'sword'))

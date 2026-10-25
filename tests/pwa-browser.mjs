@@ -138,7 +138,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     }
     const clickCell=async(position)=>page.evaluate(`(()=>{const canvas=document.querySelector('.dungeon-map'),origin=JSON.parse(canvas.dataset.cameraOrigin),bounds=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:bounds.left+(${position.x}-origin.x+.5)*bounds.width/11,clientY:bounds.top+(${position.y}-origin.y+.5)*bounds.height/11}))})()`)
     await page.click('拾う'); await saved('data.run.battle.loot.chests.some((chest)=>chest.opened)')
-    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,7)
+    const offlineSave=await read();assert.ok(offlineSave.run.battle.loot.items.length);assert.equal(offlineSave.schemaVersion,8)
     await page.reload();await page.click('探索を再開');await page.waitFor("document.querySelector('.dungeon-map')",'オフライン再起動に失敗')
     assert.deepEqual(await read(),offlineSave);await clickCell(chest.position);assert.deepEqual(await read(),offlineSave,'二重報酬が発生しました')
     for(const width of [360,390,430]){
@@ -169,7 +169,7 @@ async function checkBuild(base, outDir, profileDirectory) {
     const beforeUpdate=await read();await page.click('更新する')
     await page.waitFor("window.__updateMarker!==true && document.querySelector('.title-start') && !document.querySelector('.title-start').disabled",'更新が完了しません')
     assert.deepEqual(await read(),beforeUpdate,'SW更新で保存データが変化しました')
-    assert.equal((await read()).schemaVersion,7)
+    assert.equal((await read()).schemaVersion,8)
     if (base === '/') {
       // 実際のSW制御下・ネットワーク遮断下で13×13ボス戦とIndexedDB再開を確認。
       await page.evaluate(`(${database})(${JSON.stringify(bossFixture)})`)

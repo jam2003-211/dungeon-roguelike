@@ -1,11 +1,11 @@
 import { FOREST_MAP, MAP_SIZE, PLAYER_START, isInsideMap, isPassable, type ForestMap, type Position } from '../forestMap'
 import type { Direction } from '../exploration'
 import { STANDARD_ENEMY_BASE_HP, standardEnemyHp, baseStats, JOBS, weaponBaseAttack } from '../player'
-import { bossCells, distanceToBoss, occupiesBoss, specialBossPlan, type BossPattern } from '../specialBoss'
+import { bossCells, distanceToBoss, occupiesBoss, specialBossPlanForPattern, SPECIAL_BOSS_INTERVALS, SPECIAL_BOSS_PATTERNS, type BossPattern } from '../specialBoss'
 import type { DungeonTheme } from '../dungeon'
 
 export type EnemyKind = 'goblin' | 'boar' | 'slimeKing' | 'cyclopsBat' | 'stoneGolem' | 'ghost'
-export type AttackWarning = Readonly<{ remaining: number; cells: Position[]; direction: Direction; target: Position; pattern?: BossPattern | 'strike' | 'ground' | 'normalCross'; destination?: Position; followUpCells?: Position[]; phase?: 1 | 2 }>
+export type AttackWarning = Readonly<{ remaining: number; cells: Position[]; direction: Direction; target: Position; pattern?: BossPattern | 'strike' | 'ground' | 'normalCross'; destination?: Position; followUpCells?: Position[]; phase?: 1 | 2; simultaneous?: { pattern: BossPattern; cells: Position[]; destination?: Position }[]; fromCombo?: boolean; scheduled?: boolean }>
 
 export interface EnemyDefinition {
   kind: EnemyKind
@@ -28,6 +28,8 @@ export interface EnemyState {
   isBoss: boolean
   specialBoss?: DungeonTheme
   attackIndex?: number
+  abilityCooldowns?: Partial<Record<BossPattern, number>>
+  comboQueue?: BossPattern[]
   warning: AttackWarning | null
   statuses?: { poison: number; burn: number; slow: number; stun: number; stunRecovery?: number }
 }
@@ -55,12 +57,12 @@ export function referenceSpearDamage(level: number): number {
 export function bossMaxHp(level: number, special = false): number { return referenceSpearDamage(level) * (special ? 30 : 12) }
 
 export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
-  goblin: { kind: 'goblin', name: 'ゴブリン', baseHp: 20, baseAttack: 15, detectionRange: 4, preparationTurns: 1 },
-  boar: { kind: 'boar', name: 'イノシシ', baseHp: 20, baseAttack: 20, detectionRange: 5, preparationTurns: 2 },
-  slimeKing: { kind: 'slimeKing', name: 'スライムキング', baseHp: 30, baseAttack: 10, detectionRange: 4, preparationTurns: 2 },
-  cyclopsBat: { kind: 'cyclopsBat', name: '一つ目コウモリ', baseHp: 10, baseAttack: 15, detectionRange: 7, preparationTurns: 1 },
-  stoneGolem: { kind: 'stoneGolem', name: 'ストーンゴーレム', baseHp: 30, baseAttack: 15, detectionRange: 5, preparationTurns: 2 },
-  ghost: { kind: 'ghost', name: 'ゴースト', baseHp: 10, baseAttack: 20, detectionRange: 8, preparationTurns: 2 },
+  goblin: { kind: 'goblin', name: 'ゴブリン', baseHp: 20, baseAttack: 15, detectionRange: 4, preparationTurns: 2 },
+  boar: { kind: 'boar', name: 'イノシシ', baseHp: 20, baseAttack: 20, detectionRange: 5, preparationTurns: 3 },
+  slimeKing: { kind: 'slimeKing', name: 'スライムキング', baseHp: 30, baseAttack: 10, detectionRange: 4, preparationTurns: 3 },
+  cyclopsBat: { kind: 'cyclopsBat', name: '一つ目コウモリ', baseHp: 10, baseAttack: 15, detectionRange: 7, preparationTurns: 2 },
+  stoneGolem: { kind: 'stoneGolem', name: 'ストーンゴーレム', baseHp: 30, baseAttack: 15, detectionRange: 5, preparationTurns: 3 },
+  ghost: { kind: 'ghost', name: 'ゴースト', baseHp: 10, baseAttack: 20, detectionRange: 8, preparationTurns: 3 },
 }
 
 const directionOffsets: Readonly<Record<Direction, Position>> = {
@@ -84,7 +86,7 @@ export function createEnemy(id: string, kind: EnemyKind, level: number, position
   return {
     id, kind, level, position: { ...position }, hp: maxHp, maxHp,
     attack: isBoss ? Math.floor(normalAttack * (specialBoss === 'ruins' ? 2 : specialBoss === 'castle' ? 1.8 : 1.5)) : normalAttack,
-    discovered: false, isBoss, ...(specialBoss ? { specialBoss, attackIndex: 0 } : isBoss ? { attackIndex: 0 } : {}), warning: null, statuses: { poison: 0, burn: 0, slow: 0, stun: 0 },
+    discovered: false, isBoss, ...(specialBoss ? { specialBoss, attackIndex: 0, abilityCooldowns: Object.fromEntries(SPECIAL_BOSS_PATTERNS[specialBoss].map((pattern) => [pattern, 0])), comboQueue: [] } : {}), warning: null, statuses: { poison: 0, burn: 0, slow: 0, stun: 0 },
   }
 }
 
@@ -149,10 +151,16 @@ function add(position: Position, direction: Direction, distance: number, side = 
   return { x: position.x + forward.x * distance + perpendicular.x * side, y: position.y + forward.y * distance + perpendicular.y * side }
 }
 
-function rawAttackCells(kind: EnemyKind, origin: Position, direction: Direction, target: Position, isBoss: boolean): Position[] {
+function startsBossCombo(enemy: EnemyState, pattern: BossPattern): boolean {
+  if (!enemy.specialBoss || !['roots', 'slam', 'flameWave'].includes(pattern)) return false
+  const enraged = enemy.hp * 2 <= enemy.maxHp
+  return (enemy.specialBoss === 'castle' && enraged) || (enemy.attackIndex ?? 0) % (enraged ? 2 : 4) === 0
+}
+
+function rawAttackCells(kind: EnemyKind, origin: Position, direction: Direction, target: Position): Position[] {
   if (kind === 'ghost') return [{ ...target }]
   if (kind === 'slimeKing') {
-    const radius = isBoss ? 2 : 1
+    const radius = 1
     const cells: Position[] = []
     for (let y = -radius; y <= radius; y += 1) for (let x = -radius; x <= radius; x += 1) {
       if (x !== 0 || y !== 0) cells.push({ x: origin.x + x, y: origin.y + y })
@@ -160,41 +168,63 @@ function rawAttackCells(kind: EnemyKind, origin: Position, direction: Direction,
     return cells
   }
   if (kind === 'stoneGolem') {
-    const depth = isBoss ? 3 : 2
+    const depth = 2
     const cells: Position[] = []
     for (let distance = 1; distance <= depth; distance += 1) for (let side = -1; side <= 1; side += 1) cells.push(add(origin, direction, distance, side))
     return cells
   }
   const normalRange = kind === 'goblin' ? 1 : kind === 'boar' ? 3 : 5
-  const range = normalRange + (isBoss ? 1 : 0)
+  const range = normalRange
   return Array.from({ length: range }, (_, index) => add(origin, direction, index + 1))
 }
 
 export function getAttackCells(enemy: EnemyState, direction: Direction, target: Position, map: ForestMap = FOREST_MAP): Position[] {
-  return rawAttackCells(enemy.kind, enemy.position, direction, target, enemy.isBoss)
+  return rawAttackCells(enemy.kind, enemy.position, direction, target)
     .filter((cell) => isInsideMap(cell) && isPassable(map, cell) && hasLineOfSight(map, enemy.position, cell))
 }
 
 function bossWarning(enemy: EnemyState, player: Position, map: ForestMap): AttackWarning | null {
   const direction = chooseFacing(enemy.position, player)
   if (enemy.specialBoss) {
-    const plan = specialBossPlan(enemy.specialBoss, enemy.position, player, map, enemy.attackIndex ?? 0, enemy.hp * 2 <= enemy.maxHp)
-    return { remaining: enemy.specialBoss === 'ruins' && enemy.hp * 2 > enemy.maxHp ? 2 : 1, cells: plan.cells, direction, target: { ...player }, pattern: plan.pattern, ...(plan.destination ? { destination: plan.destination } : {}), ...(plan.followUpCells ? { followUpCells: plan.followUpCells, phase: 1 } : {}) }
+    const patterns = SPECIAL_BOSS_PATTERNS[enemy.specialBoss]
+    const ready = patterns.filter((pattern) => (enemy.abilityCooldowns?.[pattern] ?? 0) === 0)
+    const queued = enemy.comboQueue?.[0]
+    if (queued && !ready.includes(queued)) return null
+    if (!ready.length) return null
+    const ordered = queued ? [queued] : [...ready].sort((a, b) =>
+      (patterns.indexOf(a) - (enemy.attackIndex ?? 0) % patterns.length + patterns.length) % patterns.length
+      - (patterns.indexOf(b) - (enemy.attackIndex ?? 0) % patterns.length + patterns.length) % patterns.length)
+    const enraged = enemy.hp * 2 <= enemy.maxHp
+    const primary = specialBossPlanForPattern(enemy.specialBoss, enemy.position, player, map, ordered[0], enraged)
+    const selected = [primary]
+    const comboOpening = !queued && startsBossCombo(enemy, primary.pattern)
+    if (!queued && !comboOpening && primary.pattern !== 'doubleBurst' && (enraged || (enemy.attackIndex ?? 0) % 2 === 1)) {
+      for (const pattern of ordered.slice(1)) {
+        if (pattern === 'doubleBurst' || pattern === 'charge') continue
+        const next = specialBossPlanForPattern(enemy.specialBoss, enemy.position, player, map, pattern, enraged)
+        const hazard = new Set([...primary.cells, ...next.cells].map(positionKey))
+        const hasEscape = Object.values(directionOffsets).some((offset) => {
+          const cell = { x: player.x + offset.x, y: player.y + offset.y }
+          return isPassable(map, cell) && !occupiesBoss(enemy.position, cell, true) && !hazard.has(positionKey(cell))
+        })
+        if (hasEscape) { selected.push(next); break }
+      }
+    }
+    const cells = [...new Map(selected.flatMap((plan) => plan.cells).map((cell) => [positionKey(cell), cell])).values()]
+    return { remaining: 1, cells, direction, target: { ...player }, pattern: primary.pattern, scheduled: true,
+      ...(primary.destination ? { destination: primary.destination } : {}),
+      ...(primary.followUpCells ? { followUpCells: primary.followUpCells, phase: 1 } : {}),
+      ...(selected.length > 1 ? { simultaneous: selected.map(({ pattern, cells, destination }) => ({ pattern, cells, ...(destination ? { destination } : {}) })) } : {}),
+      ...(queued ? { fromCombo: true } : {}),
+    }
   }
-  const base = attackPlanFrom(enemy, enemy.position, player, map)
-  if (!base) return null
-  const pattern = (['strike', 'ground', 'normalCross'] as const)[(enemy.attackIndex ?? 0) % 3]
-  if (pattern === 'strike') return { ...base, remaining: 1, pattern }
-  const cells = pattern === 'ground'
-    ? Array.from({ length: 9 }, (_, index) => ({ x: player.x + index % 3 - 1, y: player.y + Math.floor(index / 3) - 1 }))
-    : Array.from({ length: map.length }, (_, index) => [{ x: index, y: player.y }, { x: player.x, y: index }]).flat()
-  return { ...base, remaining: 1, pattern, cells: cells.filter((cell) => isPassable(map, cell)) }
+  return attackPlanFrom(enemy, enemy.position, player, map)
 }
 
 function attackPlanFrom(enemy: EnemyState, origin: Position, player: Position, map: ForestMap): AttackWarning | null {
   const temporary = { ...enemy, position: origin }
   if (enemy.kind === 'ghost') {
-    const range = enemy.isBoss ? 9 : 8
+    const range = 8
     if (manhattanDistance(origin, player) > range || !hasLineOfSight(map, origin, player)) return null
     return { remaining: ENEMY_DEFINITIONS[enemy.kind].preparationTurns, cells: [{ ...player }], direction: chooseFacing(origin, player), target: { ...player } }
   }
@@ -249,6 +279,7 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
     const statuses = enemy.statuses ?? { poison: 0, burn: 0, slow: 0, stun: 0 }
     const skipSlowedMovement = statuses.slow > 0 && statuses.slow % 2 === 1
     enemy = { ...enemy, statuses: { ...statuses, slow: Math.max(0, statuses.slow - 1), ...('stunRecovery' in statuses ? { stunRecovery: Math.max(0, (statuses.stunRecovery ?? 0) - 1) } : {}) } }
+    if (enemy.specialBoss && enemy.abilityCooldowns) enemy = { ...enemy, abilityCooldowns: Object.fromEntries(Object.entries(enemy.abilityCooldowns).map(([pattern, turns]) => [pattern, Math.max(0, turns - 1)])) }
     if (statuses.stun > 0) {
       enemies[index] = { ...enemy, statuses: { ...enemy.statuses!, stun: statuses.stun - 1 } }
       continue
@@ -257,12 +288,30 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
       if (enemy.warning.remaining > 1) enemy = { ...enemy, warning: { ...enemy.warning, remaining: enemy.warning.remaining - 1 } }
       else {
         if (enemy.warning.cells.some((cell) => samePosition(cell, state.position))) playerHp = Math.max(0, playerHp - enemy.attack)
-        if (enemy.specialBoss && enemy.warning.pattern) bossEvents.push({ theme: enemy.specialBoss, pattern: enemy.warning.pattern as BossPattern, cells: enemy.warning.cells, from: enemy.position })
+        if (enemy.specialBoss && enemy.warning.pattern) {
+          for (const effect of enemy.warning.simultaneous ?? [{ pattern: enemy.warning.pattern as BossPattern, cells: enemy.warning.cells }]) {
+            bossEvents.push({ theme: enemy.specialBoss, pattern: effect.pattern, cells: effect.cells, from: enemy.position })
+          }
+        }
         if (enemy.warning.followUpCells?.length) {
           const { followUpCells, ...warning } = enemy.warning
           enemy = { ...enemy, warning: { ...warning, remaining: 1, cells: followUpCells, phase: 2 } }
         } else {
-          enemy = { ...enemy, position: enemy.warning.destination && !occupiesBoss(enemy.warning.destination, state.position, Boolean(enemy.specialBoss)) ? { ...enemy.warning.destination } : enemy.position, warning: null, ...(enemy.isBoss ? { attackIndex: (enemy.attackIndex ?? 0) + 1 } : {}) }
+          const warning = enemy.warning
+          if (enemy.specialBoss && warning.pattern) {
+            const fired = warning.simultaneous?.map(({ pattern }) => pattern) ?? [warning.pattern as BossPattern]
+            const cooldowns = { ...enemy.abilityCooldowns }
+            for (const pattern of fired) cooldowns[pattern] = Math.max(1, SPECIAL_BOSS_INTERVALS[pattern] - (enemy.hp * 2 <= enemy.maxHp && enemy.specialBoss === 'ruins' ? 2 : 1))
+            let comboQueue = enemy.comboQueue ?? []
+            if (!warning.fromCombo && !warning.simultaneous && startsBossCombo(enemy, warning.pattern as BossPattern)) {
+              const desired = enemy.specialBoss === 'forest' && warning.pattern === 'roots' ? ['sweep']
+                : enemy.specialBoss === 'ruins' && warning.pattern === 'slam' ? ['cross']
+                  : enemy.specialBoss === 'castle' && warning.pattern === 'flameWave' ? ['burst', 'release'] : []
+              comboQueue = desired.filter((pattern) => (cooldowns[pattern as BossPattern] ?? 0) === 0) as BossPattern[]
+            }
+            enemy = { ...enemy, abilityCooldowns: cooldowns, comboQueue }
+          }
+          enemy = { ...enemy, position: warning.destination && !occupiesBoss(warning.destination, state.position, Boolean(enemy.specialBoss)) ? { ...warning.destination } : enemy.position, warning: null, ...(enemy.specialBoss ? { attackIndex: (enemy.attackIndex ?? 0) + 1 } : {}) }
         }
       }
       enemies[index] = enemy
@@ -272,7 +321,7 @@ export function processEnemyTurn(state: CombatState, map: ForestMap = FOREST_MAP
     if (!discovered) continue
     enemy = { ...enemy, discovered: true }
     const warning = createAttackWarning(enemy, state.position, map)
-    if (warning) enemy = { ...enemy, warning }
+    if (warning) enemy = { ...enemy, warning, ...(warning.fromCombo ? { comboQueue: enemy.comboQueue?.slice(1) ?? [] } : {}) }
     else {
       if (skipSlowedMovement) {
         enemies[index] = enemy

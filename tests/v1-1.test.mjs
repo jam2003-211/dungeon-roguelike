@@ -68,13 +68,15 @@ test('防御の手動ターン後に敵が準備し、次の赤予告とCDを更
   assert.equal(defended.combat.turn, 1)
   assert.equal(defended.guardTurns, 3)
   assert.equal(defended.cooldowns.guard, 5)
-  assert.equal(combat.getWarningLevel(defended.combat.enemies, defended.combat.position), 'red')
+  assert.equal(combat.getWarningLevel(defended.combat.enemies, defended.combat.position), null)
   assert.equal(defended.player.currentHp, s.player.currentHp)
   const escaped = battle.moveBattlePlayer(defended, 'up', map)
   assert.equal(escaped.combat.turn, 2)
   assert.equal(escaped.cooldowns.guard, 4)
   assert.equal(escaped.player.currentHp, s.player.currentHp)
-  assert.equal(escaped.combat.enemies[0].warning, null)
+  assert.equal(escaped.combat.enemies[0].warning.remaining, 1)
+  const resolved = battle.moveBattlePlayer(escaped, 'up', map)
+  assert.equal(resolved.combat.enemies[0].warning, null)
 })
 test('回復とダッシュは自動選択せず、手動時だけ有効な行動でターンとCDを使う', () => {
   const healing = state(['smallHeal', 'largeHeal']); healing.combat.enemies = []

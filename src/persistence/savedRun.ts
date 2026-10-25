@@ -4,7 +4,7 @@ import { calculateStats, enemyExperience, type EquipmentItem, type PlayerState, 
 import { createEnemy, createAttackWarning, ENEMY_DEFINITIONS, getAttackCells, normalEnemyHp, type EnemyState } from '../game/combat/combat'
 import { isPassable, type Position } from '../game/forestMap'
 import { SPECIAL_REWARD_POSITIONS, type DungeonStock, type DungeonStockId } from '../game/dungeon'
-import { bossCells, specialBossPlan } from '../game/specialBoss'
+import { bossCells, specialBossPlan, specialBossPlanForPattern, SPECIAL_BOSS_INTERVALS, SPECIAL_BOSS_PATTERNS, type BossPattern } from '../game/specialBoss'
 import { SKILLS } from '../game/skills'
 
 export interface SavedRun {
@@ -51,6 +51,11 @@ export function validSavedRun(value: unknown, player: PlayerState, stocks: Dunge
     const legacyBossHp = spawn.isBoss && !spawn.specialBoss ? normalEnemyHp(spawn.kind, spawn.level) * 3 : null
     if ((value.maxHp !== initial.maxHp && value.maxHp !== legacyBossHp) || value.attack !== initial.attack || !int(value.hp, 1, value.maxHp as number) || (value.statuses !== undefined && !statuses(value.statuses))
       || value.specialBoss !== spawn.specialBoss || (spawn.isBoss && value.attackIndex !== undefined && !int(value.attackIndex))) return false
+    if (spawn.specialBoss) {
+      const patterns = SPECIAL_BOSS_PATTERNS[spawn.specialBoss]
+      if (value.abilityCooldowns !== undefined && (!object(value.abilityCooldowns) || Object.entries(value.abilityCooldowns).some(([pattern, turns]) => !patterns.includes(pattern as BossPattern) || !int(turns, 0, SPECIAL_BOSS_INTERVALS[pattern as BossPattern])))) return false
+      if (value.comboQueue !== undefined && (!Array.isArray(value.comboQueue) || value.comboQueue.length > 2 || value.comboQueue.some((pattern) => !patterns.includes(pattern)))) return false
+    } else if (value.abilityCooldowns !== undefined || value.comboQueue !== undefined) return false
     for (const part of bossCells(value.position as Position, Boolean(spawn.specialBoss))) {
       if (!isPassable(floor.map, part) || occupied.has(`${part.x},${part.y}`)) return false
       occupied.add(`${part.x},${part.y}`)
@@ -62,7 +67,24 @@ export function validSavedRun(value: unknown, player: PlayerState, stocks: Dunge
       // 旧版で保存された準備残り(最大3)も、攻撃予告とともに引き継ぐ。
       if (!object(warning) || !int(warning.remaining, 1, ENEMY_DEFINITIONS[spawn.kind].preparationTurns + 1) || !pos(warning.target)
         || !['up', 'left', 'right', 'down'].includes(warning.direction as string) || !Array.isArray(warning.cells) || !warning.cells.every(pos)) return false
-      if (spawn.specialBoss && warning.pattern !== undefined) {
+      if (spawn.specialBoss && warning.scheduled === true && warning.pattern !== undefined) {
+        if (!SPECIAL_BOSS_PATTERNS[spawn.specialBoss].includes(warning.pattern as BossPattern) || warning.remaining !== 1 || (warning.fromCombo !== undefined && typeof warning.fromCombo !== 'boolean')) return false
+        const plans = [false, true].map((enraged) => specialBossPlanForPattern(spawn.specialBoss!, value.position as Position, warning.target as Position, floor.map, warning.pattern as BossPattern, enraged))
+        const valid = plans.some((plan, index) => {
+          const enraged = index === 1
+          const secondary = warning.simultaneous
+          if (secondary !== undefined && (!Array.isArray(secondary) || secondary.length !== 2 || secondary[0]?.pattern !== warning.pattern || warning.phase !== undefined || warning.followUpCells !== undefined || warning.fromCombo)) return false
+          const checks = secondary ?? [{ pattern: warning.pattern, cells: plan.cells, destination: plan.destination }]
+          if (!checks.every((entry) => object(entry) && SPECIAL_BOSS_PATTERNS[spawn.specialBoss!].includes(entry.pattern as BossPattern) && Array.isArray(entry.cells) && entry.cells.every(pos))) return false
+          const expected = checks.map((entry) => specialBossPlanForPattern(spawn.specialBoss!, value.position as Position, warning.target as Position, floor.map, entry.pattern as BossPattern, enraged))
+          if (!checks.every((entry, index) => JSON.stringify(entry.cells) === JSON.stringify(expected[index].cells) && JSON.stringify(entry.destination) === JSON.stringify(expected[index].destination))) return false
+          const cells = warning.phase === 2 ? plan.followUpCells : [...new Map(checks.flatMap((entry) => entry.cells as Position[]).map((cell) => [`${cell.x},${cell.y}`, cell])).values()]
+          return JSON.stringify(cells) === JSON.stringify(warning.cells) && JSON.stringify(warning.destination) === JSON.stringify(plan.destination)
+            && JSON.stringify(warning.followUpCells) === JSON.stringify(warning.phase === 1 ? plan.followUpCells : undefined)
+            && (plan.followUpCells ? warning.phase === 1 || warning.phase === 2 : warning.phase === undefined)
+        })
+        if (!valid) return false
+      } else if (spawn.specialBoss && warning.pattern !== undefined) {
         // 予告後にHPが50%を跨いでも、予告時に固定した範囲を変更しない。
         const plans = [false, true].map((enraged) => specialBossPlan(spawn.specialBoss!, value.position as Position, warning.target as Position, floor.map, (value.attackIndex as number) ?? 0, enraged))
         if (!plans.some((plan) => plan.pattern === warning.pattern
@@ -71,13 +93,19 @@ export function validSavedRun(value: unknown, player: PlayerState, stocks: Dunge
           && JSON.stringify(plan.destination) === JSON.stringify(warning.destination))) return false
         if (warning.pattern === 'doubleBurst' ? warning.phase !== 1 && warning.phase !== 2 : warning.phase !== undefined || warning.followUpCells !== undefined) return false
         if (warning.phase === 2 && warning.followUpCells !== undefined) return false
+      } else if (spawn.isBoss && !spawn.specialBoss && warning.pattern !== undefined) {
+        if (!['strike', 'ground', 'normalCross'].includes(warning.pattern as string) || warning.remaining !== 1 || warning.destination !== undefined || warning.phase !== undefined || warning.followUpCells !== undefined || warning.simultaneous !== undefined || warning.scheduled !== undefined) return false
+        const cells = warning.pattern === 'ground'
+          ? Array.from({ length: 9 }, (_, index) => ({ x: (warning.target as Position).x + index % 3 - 1, y: (warning.target as Position).y + Math.floor(index / 3) - 1 })).filter((cell) => isPassable(floor.map, cell))
+          : Array.from({ length: floor.map.length }, (_, index) => [{ x: index, y: (warning.target as Position).y }, { x: (warning.target as Position).x, y: index }]).flat().filter((cell) => isPassable(floor.map, cell))
+        if (warning.pattern === 'strike' ? !warning.cells.some((cell) => same(cell as Position, warning.target as Position)) : JSON.stringify(cells) !== JSON.stringify(warning.cells)) return false
       } else {
         const planned = warning.pattern === undefined ? null : createAttackWarning(value as unknown as EnemyState, warning.target as Position, floor.map)
         const expected = warning.pattern === undefined
           ? getAttackCells(value as unknown as EnemyState, warning.direction as 'up', warning.target as Position, floor.map)
           : planned?.cells
         if (!expected || JSON.stringify(expected) !== JSON.stringify(warning.cells) || (warning.pattern !== undefined && warning.pattern !== planned?.pattern)
-          || warning.destination !== undefined || warning.phase !== undefined || warning.followUpCells !== undefined) return false
+          || warning.destination !== undefined || warning.phase !== undefined || warning.followUpCells !== undefined || warning.simultaneous !== undefined || warning.scheduled !== undefined) return false
       }
       if (warning.pattern !== undefined && !['strike', 'ground', 'normalCross', 'roots', 'sweep', 'surround', 'slam', 'cross', 'charge', 'flameWave', 'burst', 'doubleBurst', 'release'].includes(warning.pattern as string)) return false
       if (warning.destination !== undefined && (!pos(warning.destination) || !bossCells(warning.destination, Boolean(spawn.specialBoss)).every((part) => isPassable(floor.map, part)))) return false

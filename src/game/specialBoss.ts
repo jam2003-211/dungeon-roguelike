@@ -2,6 +2,12 @@ import type { DungeonTheme } from './dungeon'
 import type { ForestMap, Position } from './forestMap'
 
 export type BossPattern = 'roots' | 'sweep' | 'surround' | 'slam' | 'cross' | 'charge' | 'flameWave' | 'burst' | 'doubleBurst' | 'release'
+export const SPECIAL_BOSS_PATTERNS: Readonly<Record<DungeonTheme, readonly BossPattern[]>> = {
+  forest: ['roots', 'sweep', 'surround'], ruins: ['slam', 'cross', 'charge'], castle: ['flameWave', 'burst', 'doubleBurst', 'release'],
+}
+export const SPECIAL_BOSS_INTERVALS: Readonly<Record<BossPattern, number>> = {
+  roots: 3, sweep: 5, surround: 7, slam: 3, cross: 5, charge: 7, flameWave: 3, burst: 5, doubleBurst: 7, release: 8,
+}
 export interface BossPlan { pattern: BossPattern; cells: Position[]; destination?: Position; followUpCells?: Position[] }
 
 export function bossCells(anchor: Position, special = false): Position[] {
@@ -71,4 +77,10 @@ export function specialBossPlan(theme: DungeonTheme, anchor: Position, player: P
     { x: anchor.x - 2, y: anchor.y - 2 }, { x: anchor.x + 3, y: anchor.y - 2 },
     { x: anchor.x - 2, y: anchor.y + 3 }, { x: anchor.x + 3, y: anchor.y + 3 },
   ] : [])], map) }
+}
+
+export function specialBossPlanForPattern(theme: DungeonTheme, anchor: Position, player: Position, map: ForestMap, pattern: BossPattern, enraged: boolean): BossPlan {
+  const index = SPECIAL_BOSS_PATTERNS[theme].indexOf(pattern)
+  if (index < 0) throw new Error('このボスが使用できない攻撃です。')
+  return specialBossPlan(theme, anchor, player, map, index, enraged)
 }

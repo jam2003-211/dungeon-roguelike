@@ -27,8 +27,8 @@ function openMap(obstacles = []) {
 test('敵6種類の基礎能力値・索敵距離・準備ターンが定義どおり', () => {
   const actual = Object.values(combat.ENEMY_DEFINITIONS).map(({ name, baseHp, baseAttack, detectionRange, preparationTurns }) => [name, baseHp, baseAttack, detectionRange, preparationTurns])
   assert.deepEqual(actual, [
-    ['ゴブリン', 20, 15, 4, 1], ['イノシシ', 20, 20, 5, 2], ['スライムキング', 30, 10, 4, 2],
-    ['一つ目コウモリ', 10, 15, 7, 1], ['ストーンゴーレム', 30, 15, 5, 2], ['ゴースト', 10, 20, 8, 2],
+    ['ゴブリン', 20, 15, 4, 2], ['イノシシ', 20, 20, 5, 3], ['スライムキング', 30, 10, 4, 3],
+    ['一つ目コウモリ', 10, 15, 7, 2], ['ストーンゴーレム', 30, 15, 5, 3], ['ゴースト', 10, 20, 8, 3],
   ])
 })
 
@@ -68,26 +68,28 @@ test('準備中は警告なし、攻撃1ターン前だけ赤を表示して固�
   const enemy = { ...combat.createEnemy('e', 'boar', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
   const preparing = combat.processEnemyTurn(state, openMap())
-  assert.deepEqual(preparing.enemies[0].position, enemy.position); assert.equal(preparing.enemies[0].warning.remaining, 2)
+  assert.deepEqual(preparing.enemies[0].position, enemy.position); assert.equal(preparing.enemies[0].warning.remaining, 3)
   assert.equal(combat.getWarningLevel(preparing.enemies, { x: 5, y: 6 }), null)
   const frozenCells = structuredClone(preparing.enemies[0].warning.cells)
   const escaped = { ...preparing, position: { x: 6, y: 6 } }
   const red = combat.processEnemyTurn(escaped, openMap())
-  assert.equal(red.enemies[0].warning.remaining, 1); assert.deepEqual(red.enemies[0].warning.cells, frozenCells)
-  assert.equal(combat.getWarningLevel(red.enemies, { x: 5, y: 6 }), 'red')
-  const resolved = combat.processEnemyTurn(red, openMap())
+  assert.equal(red.enemies[0].warning.remaining, 2); assert.deepEqual(red.enemies[0].warning.cells, frozenCells)
+  assert.equal(combat.getWarningLevel(red.enemies, { x: 5, y: 6 }), null)
+  const imminent = combat.processEnemyTurn(red, openMap())
+  assert.equal(combat.getWarningLevel(imminent.enemies, { x: 5, y: 6 }), 'red')
+  const resolved = combat.processEnemyTurn(imminent, openMap())
   assert.equal(resolved.playerHp, 100); assert.equal(resolved.enemies[0].warning, null)
 })
 
-test('短縮後の準備・重複警告・気絶・撃破でも赤は次行動で攻撃する敵だけ', () => {
+test('復元した準備・重複警告・気絶・撃破でも赤は次行動で攻撃する敵だけ', () => {
   const enemy = { ...combat.createEnemy('boar', 'boar', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 0, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
   const prepared = combat.processEnemyTurn(state, openMap())
-  assert.equal(prepared.enemies[0].warning.remaining, 2)
+  assert.equal(prepared.enemies[0].warning.remaining, 3)
   assert.equal(combat.getWarningLevel(prepared.enemies, state.position), null)
   const waiting = combat.processEnemyTurn(prepared, openMap())
-  assert.equal(waiting.enemies[0].warning.remaining, 1)
-  const ready = waiting
+  assert.equal(waiting.enemies[0].warning.remaining, 2)
+  const ready = combat.processEnemyTurn(waiting, openMap())
   assert.equal(combat.getWarningLevel([...waiting.enemies, ...ready.enemies], state.position), 'red')
   assert.equal(combat.getWarningLevel([{ ...ready.enemies[0], hp: 0 }], state.position), null)
   assert.equal(combat.getWarningLevel([{ ...ready.enemies[0], statuses: { poison: 0, burn: 0, slow: 0, stun: 1 } }], state.position), null)
@@ -99,12 +101,12 @@ test('短縮後の準備・重複警告・気絶・撃破でも赤は次行動�
 test('固定予告内に残ると攻撃力ぶんダメージを受ける', () => {
   const enemy = { ...combat.createEnemy('e', 'goblin', 1, { x: 5, y: 5 }), discovered: true }
   const state = { position: { x: 5, y: 6 }, turn: 1, playerHp: 100, playerMaxHp: 100, enemies: [enemy], finished: false }
-  const red = combat.processEnemyTurn(state, openMap()); const hit = combat.processEnemyTurn(red, openMap())
+  const prepared = combat.processEnemyTurn(state, openMap()); const red = combat.processEnemyTurn(prepared, openMap()); const hit = combat.processEnemyTurn(red, openMap())
   assert.equal(hit.playerHp, 85)
 })
 
-test('12行動あたりの攻撃回数が増え、どの命中にも直前の赤警告がある', () => {
-  for (const [kind, expected] of [['goblin', 6], ['boar', 4]]) {
+test('12行動あたりの攻撃回数が旧仕様へ戻り、どの命中にも直前の赤警告がある', () => {
+  for (const [kind, expected] of [['goblin', 4], ['boar', 3]]) {
     const enemy = { ...combat.createEnemy(kind, kind, 1, { x: 5, y: 5 }), discovered: true }
     let state = { position: { x: 5, y: 6 }, turn: 0, playerHp: 1000, playerMaxHp: 1000, enemies: [enemy], finished: false }
     let hits = 0
@@ -145,7 +147,7 @@ test('プレイヤーHPが0になると探索終了となり、その後の入�
 })
 
 test('ボスの6種類の攻撃範囲は通常種より1マス拡大する', () => {
-  const expected = { goblin: [1, 2], boar: [3, 4], slimeKing: [8, 24], cyclopsBat: [5, 6], stoneGolem: [6, 9], ghost: [1, 1] }
+  const expected = { goblin: [1, 1], boar: [3, 3], slimeKing: [8, 8], cyclopsBat: [5, 5], stoneGolem: [6, 6], ghost: [1, 1] }
   for (const [kind, counts] of Object.entries(expected)) {
     const normal = combat.createEnemy('n', kind, 1, { x: 10, y: 10 }); const boss = combat.createEnemy('b', kind, 1, { x: 10, y: 10 }, true)
     assert.equal(combat.getAttackCells(normal, 'up', { x: 10, y: 5 }, openMap()).length, counts[0], `${kind}通常`)
