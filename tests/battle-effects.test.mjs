@@ -122,9 +122,28 @@ test('20種の演出は固有の描画を持ち、同時描画でもCanvas状態
     drawBattleEffect(context, { kind, effect, position: target, from: point }, .5, { x: 5, y: 5 })
     assert.equal(trace[0][0], 'save'); assert.equal(trace.at(-1)[0], 'restore')
     assert.ok(trace.length > 10)
+    assert.ok(trace.some(([operation]) => operation === 'fillRect'))
+    assert.equal(trace.some(([operation]) => ['arc', 'lineTo', 'moveTo', 'bezierCurveTo', 'createLinearGradient', 'rotate'].includes(operation)), false, `${kind}:${effect} に滑らかな描画が残っています。`)
+    assert.ok(trace.filter(([operation]) => operation === 'fillRect').every(([, ...values]) => values.every(Number.isInteger)), `${kind}:${effect} の矩形が整数座標に揃っていません。`)
     traces.push(JSON.stringify(trace))
   }
   assert.equal(new Set(traces).size, 20)
+})
+
+test('特殊ボスの10攻撃パターンも矩形ドットで描き、予告を覆う滑らかな塗りを使わない', () => {
+  const patterns = { forest: ['roots', 'sweep', 'surround'], ruins: ['slam', 'cross', 'charge'], castle: ['flameWave', 'burst', 'doubleBurst', 'release'] }
+  const traces = []
+  for (const [theme, ids] of Object.entries(patterns)) for (const effect of ids) {
+    const trace = []
+    const context = new Proxy({}, { get: (_, key) => (...args) => trace.push([key, ...args]), set: (_, key, value) => { trace.push([key, value]); return true } })
+    drawBattleEffect(context, { kind: 'boss', theme, effect, position: target, from: point }, .5, { x: 5, y: 5 })
+    assert.ok(trace.some(([operation]) => operation === 'fillRect'), `${theme}:${effect}`)
+    assert.equal(trace.some(([operation]) => ['arc', 'lineTo', 'moveTo', 'bezierCurveTo', 'createLinearGradient', 'rotate'].includes(operation)), false)
+    assert.ok(trace.filter(([operation]) => operation === 'fillRect').every(([, ...values]) => values.every(Number.isInteger)))
+    assert.ok(trace.some(([key, value]) => key === 'imageSmoothingEnabled' && value === false))
+    traces.push(JSON.stringify(trace))
+  }
+  assert.equal(new Set(traces).size, 10)
 })
 
 test('演出情報は保存対象に含めず、再開時のCD・防御・敵状態は維持する', async () => {

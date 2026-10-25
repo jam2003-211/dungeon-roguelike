@@ -266,6 +266,8 @@ try {
   // 新規ゲームの配布内容を実UIで確認後、回帰テスト用装備だけをIndexedDB経由で用意する。
   await clickButton('装備・所持品')
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.inventory-item strong')].map((node)=>node.textContent)"), ['剣'])
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.equipment-slot')].slice(2).map((slot)=>({label:slot.querySelector('strong')?.textContent,hasIcon:Boolean(slot.querySelector('img,svg'))}))"), [{ label: '未選択', hasIcon: false }, { label: '未選択', hasIcon: false }], '未装備アクセサリー枠にアイコンが残っています。')
+  assert.equal(await evaluate("[...document.querySelectorAll('.equipment-slot')].slice(0,2).every((slot)=>Boolean(slot.querySelector('img,svg')))"), true, '装備中の画像が消えています。')
   await clickExactButton('防具')
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.inventory-item strong')].map((node)=>node.textContent)"), ['軽鎧'])
   await clickExactButton('アクセサリー')
@@ -293,6 +295,7 @@ try {
     await captureScreen(`screen-${heading}`)
     if (heading === 'ダンジョン') {
       assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-card')].map((card) => [...card.querySelectorAll('.planned-actions button')].map((button) => button.disabled))"), [[false, true], [true, true], [true, true]], '初期解放状態が不正です。')
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-card.is-locked')].map((card)=>({label:card.querySelector('.stock-locked-label')?.textContent,hasLock:Boolean(card.querySelector('.stock-card__top > svg'))}))"), [{ label: '未開放', hasLock: false }, { label: '未開放', hasLock: false }], '未開放表示または錠アイコンが不正です。')
       assert.deepEqual(await evaluate("[...document.querySelectorAll('.stock-icon img')].map((image) => image.getAttribute('src'))"), ['/assets/icons/forest.png', '/assets/icons/ruins.png', '/assets/icons/castle_dark.png'], 'ダンジョンストックのアイコンが指定画像と一致しません。')
       assert.equal(await evaluate("document.querySelector('.dungeon-level-picker input') === null"), true, 'ダンジョンLv設定でキーボードが必要です。')
       await clickExactButton('Lv.10')
@@ -492,6 +495,9 @@ assert.equal(foundReward, true, '鑑定した装備が所持品にありませ�
 
   for (const width of [360, 390, 430]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
+    await clickButton('ダンジョン')
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll('.stock-locked-label')].every((label)=>label.getBoundingClientRect().right <= innerWidth)"), true, `${width}pxの未開放表示が横にはみ出しました。`)
+    await clickButton('前の画面へ戻る')
     await clickButton('装備・所持品')
     await clickExactButton('防具')
     assert.equal(await evaluate("[...document.querySelectorAll('.inventory-item')].every((card)=>card.querySelector('.inventory-item__level')?.textContent.startsWith('Lv.'))"), true, '装備Lvが一覧で目立ちません。')

@@ -102,6 +102,7 @@ h1, h2, p { margin-top: 0; }
 .stock-card--3 { --theme: #a794e8; background-image: linear-gradient(rgba(5, 6, 8, .86), rgba(5, 6, 8, .94)), url('/assets/backgrounds/castle.png'); }
 .stock-card.is-locked { opacity: .55; filter: grayscale(.75); }
 .stock-card__top { display: grid; grid-template-columns: 54px 1fr auto; gap: 11px; align-items: center; }
+.stock-locked-label { color: #fff; font-size: .75rem; white-space: nowrap; }
 .stock-icon { width: 54px; height: 54px; display: grid; place-items: center; background: #15171a; border: 2px solid var(--theme); border-radius: 2px; }
 .stock-title small { color: var(--theme); font: 800 .61rem ui-monospace, monospace; letter-spacing: .06em; }
 .stock-title h2 { margin: 2px 0 3px; color: #fff; font-size: 1.12rem; }
